@@ -1,8 +1,10 @@
 # cargo-dockerize subcommand
 
-To test:
+The goal of this cargo sub command is to package a given crate binaries in a docker container, it takes into consideration the crate dependencies to define if the crate version should be bumped effectively, it is more useful in the context of a monorepo like the one Legion Labs maintains.
 
-add target/debug in path and run `cargo dockerize`
+## How to:
+
+Add target/debug in path and run `cargo dockerize`
 
 you should a similar output to this:
 
