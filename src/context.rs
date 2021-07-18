@@ -46,6 +46,8 @@ impl TryFrom<Metadata> for Option<DockerSettings> {
 pub struct DockerPacakge {
     pub name: String,
     pub version: String,
+    pub toml_path: String,
+    pub binaries: Vec<String>,
     pub docker_settings: DockerSettings,
     pub deps: Vec<Dependency>,
 }
@@ -76,8 +78,15 @@ impl Context {
         }
         let resolve = metadata.resolve.as_ref().unwrap();
         let mut docker_packages = vec![];
+        // for each workspace member, we're going to build a DockerPackage
+        // contains binaries
         for package_id in &metadata.workspace_members {
             let package = &metadata[package_id];
+
+            // Early out when we don't have metadata
+            if package.metadata.is_null() {
+                continue;
+            }
             let docker_metadata = Metadata::deserialize(&package.metadata);
             if let Err(e) = &docker_metadata {
                 return Err(format!("failed to deserialize docker metadata {}", e));
@@ -91,6 +100,25 @@ impl Context {
             } else if let Ok(None) = &docker_settings {
                 continue;
             };
+            let docker_settings = docker_settings.unwrap().unwrap();
+
+            let binaries: Vec<_> = package
+                .targets
+                .iter()
+                .filter_map(|target| {
+                    if target.kind.contains(&"bin".to_string()) {
+                        Some(target.name.clone())
+                    } else {
+                        None
+                    }
+                })
+                .collect();
+            if binaries.is_empty() {
+                return Err(format!(
+                    "Docker metadata was found in {}, but no binaries were found in the crate",
+                    package_id
+                ));
+            }
             let node = resolve.nodes.iter().find(|node| node.id == *package_id);
             if node.is_none() {
                 return Err(format!(
@@ -114,7 +142,9 @@ impl Context {
             docker_packages.push(DockerPacakge {
                 name: package.name.clone(),
                 version: package.version.to_string(),
-                docker_settings: docker_settings.unwrap().unwrap(),
+                toml_path: package.manifest_path.to_string(),
+                binaries,
+                docker_settings,
                 deps,
             })
         }
