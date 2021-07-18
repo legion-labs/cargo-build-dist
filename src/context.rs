@@ -49,7 +49,7 @@ pub struct DockerPacakge {
     pub toml_path: String,
     pub binaries: Vec<String>,
     pub docker_settings: DockerSettings,
-    pub deps: Vec<Dependency>,
+    pub dependencies: Vec<Dependency>,
 }
 
 pub struct Context {
@@ -58,6 +58,7 @@ pub struct Context {
 }
 
 impl Context {
+    /// Building a context regardless of the planning and execution
     pub fn build(cargo: &str) -> Result<Self, String> {
         let mut cmd = cargo_metadata::MetadataCommand::new();
         // even if MetadataCommand::new() can find cargo using the env var
@@ -91,17 +92,17 @@ impl Context {
             if let Err(e) = &docker_metadata {
                 return Err(format!("failed to deserialize docker metadata {}", e));
             }
-            let docker_metadata = docker_metadata.unwrap();
-
             let docker_settings: Result<Option<DockerSettings>, String> =
-                docker_metadata.try_into();
+                docker_metadata.unwrap().try_into();
             if let Err(e) = &docker_settings {
                 return Err(format!("failed to parse the docker metadata: {}", e));
             } else if let Ok(None) = &docker_settings {
                 continue;
             };
+            // We can safely unwrap here, we know the data is sane
             let docker_settings = docker_settings.unwrap().unwrap();
 
+            // We need all the binaries so we package them later on
             let binaries: Vec<_> = package
                 .targets
                 .iter()
@@ -113,12 +114,15 @@ impl Context {
                     }
                 })
                 .collect();
+
             if binaries.is_empty() {
                 return Err(format!(
                     "Docker metadata was found in {}, but no binaries were found in the crate",
                     package_id
                 ));
             }
+
+            // accumulating all the resolved dependencies
             let node = resolve.nodes.iter().find(|node| node.id == *package_id);
             if node.is_none() {
                 return Err(format!(
@@ -127,7 +131,7 @@ impl Context {
                 ));
             }
             let node = node.unwrap();
-            let deps: Vec<_> = node
+            let dependencies: Vec<_> = node
                 .dependencies
                 .iter()
                 .map(|dep_id| {
@@ -145,10 +149,12 @@ impl Context {
                 toml_path: package.manifest_path.to_string(),
                 binaries,
                 docker_settings,
-                deps,
+                dependencies,
             })
         }
+
         println!("{:?}", docker_packages);
+
         Ok(Context {
             target_dir: metadata.target_directory.to_string(),
             docker_packages,
