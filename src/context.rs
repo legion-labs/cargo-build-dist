@@ -49,6 +49,7 @@ pub struct DockerPacakge {
     pub toml_path: String,
     pub binaries: Vec<String>,
     pub docker_settings: DockerSettings,
+    // transitive dependencies
     pub dependencies: Vec<Dependency>,
 }
 
@@ -131,6 +132,7 @@ impl Context {
                 ));
             }
             let node = node.unwrap();
+            // todo: find transitive dependencies recursively
             let dependencies: Vec<_> = node
                 .dependencies
                 .iter()
