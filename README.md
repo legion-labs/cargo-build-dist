@@ -4,7 +4,7 @@ The goal of this cargo sub command is to package a given crate binaries in a doc
 
 ## How to:
 
-Add target/debug in path and run `cargo dockerize`
+Add target/debug in path and run `cargo dockerize build`
 
 you should a similar output to this:
 
