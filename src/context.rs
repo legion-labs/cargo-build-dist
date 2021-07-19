@@ -43,7 +43,7 @@ impl TryFrom<Metadata> for Option<DockerSettings> {
 }
 
 #[derive(Debug, Clone)]
-pub struct DockerPacakge {
+pub struct DockerPackage {
     pub name: String,
     pub version: String,
     pub toml_path: String,
@@ -55,7 +55,7 @@ pub struct DockerPacakge {
 
 pub struct Context {
     pub target_dir: String,
-    pub docker_packages: Vec<DockerPacakge>,
+    pub docker_packages: Vec<DockerPackage>,
 }
 
 impl Context {
@@ -145,7 +145,7 @@ impl Context {
                 })
                 .collect();
 
-            docker_packages.push(DockerPacakge {
+            docker_packages.push(DockerPackage {
                 name: package.name.clone(),
                 version: package.version.to_string(),
                 toml_path: package.manifest_path.to_string(),
