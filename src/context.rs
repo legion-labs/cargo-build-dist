@@ -2,8 +2,13 @@
 //! all relevant information for the rest of the commands, most notably
 //! the tree of workspace members containing a package.metadata.docker entry
 
-use std::convert::{TryFrom, TryInto};
+use std::path::Path;
+use std::{
+    convert::{TryFrom, TryInto},
+    vec,
+};
 
+use cargo_metadata::PackageId;
 use serde::Deserialize;
 
 #[derive(Debug, Clone)]
@@ -15,6 +20,13 @@ pub struct Dependency {
 #[derive(Debug, Clone, Deserialize)]
 struct DockerMetadata {
     pub deps_hash: Option<String>,
+    pub copy: Option<Vec<CopyCommand>>,
+    pub env: Option<Vec<EnvironmentVariable>>,
+    pub run: Option<Vec<String>>,
+    pub expose: Option<Vec<i32>>,
+    pub workdir: Option<String>,
+    pub entrypoint: Option<String>,
+    pub user: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -22,19 +34,59 @@ struct Metadata {
     docker: Option<DockerMetadata>,
 }
 
+#[derive(Debug, Clone, Deserialize)]
+pub struct CopyCommand {
+    pub source: String,
+    pub destination: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct EnvironmentVariable {
+    name: String,
+    value: String,
+}
+
 #[derive(Debug, Clone)]
 pub struct DockerSettings {
-    pub deps_hash: String,
+    pub deps_hash: Option<String>,
+    pub copy: Option<Vec<CopyCommand>>,
+    pub env: Option<Vec<EnvironmentVariable>>,
+    pub run: Option<Vec<String>>,
+    pub expose: Option<Vec<i32>>,
+    pub workdir: Option<String>,
+    pub entrypoint: Option<String>,
+    pub user: Option<String>,
 }
 
 impl TryFrom<Metadata> for Option<DockerSettings> {
     type Error = String;
 
     fn try_from(value: Metadata) -> Result<Self, Self::Error> {
-        if let Some(_) = value.docker {
-            // todo: validate input and return errors.
+        if let Some(docker_metadata) = value.docker {
+
+            // validate COPY commands
+            if let Some(copy_commands) = &docker_metadata.copy {
+                for copy_command in copy_commands {
+                    if !Path::new(&copy_command.source).exists() {
+                        return Err(format!("File {} doesn't exists", &copy_command.source));
+                    }
+                    if !Path::new(&copy_command.destination).is_absolute(){
+                        return Err(format!("Destiantion file {} needs to be absolute", &copy_command.destination));
+                    }
+
+                }
+            }
+
+
             Ok(Some(DockerSettings {
-                deps_hash: "aa".to_string(),
+                deps_hash: docker_metadata.deps_hash,
+                workdir: docker_metadata.workdir,
+                entrypoint: docker_metadata.entrypoint,
+                expose: docker_metadata.expose,
+                run: docker_metadata.run,
+                env: docker_metadata.env,
+                copy: docker_metadata.copy,
+                user: docker_metadata.user,
             }))
         } else {
             Ok(None)
@@ -69,16 +121,9 @@ impl Context {
 
         let metadata = cmd.exec();
         if let Err(e) = &metadata {
-            return Err(format!("failed to run cargo manifest {}", e));
+            return Err(format!("failed to run cargo metadata {}", e));
         }
         let metadata = metadata.unwrap();
-        if metadata.resolve.is_none() {
-            return Err(format!(
-                "resolve section not found in the workspace: {}",
-                metadata.workspace_root
-            ));
-        }
-        let resolve = metadata.resolve.as_ref().unwrap();
         let mut docker_packages = vec![];
         // for each workspace member, we're going to build a DockerPackage
         // contains binaries
@@ -123,27 +168,7 @@ impl Context {
                 ));
             }
 
-            // accumulating all the resolved dependencies
-            let node = resolve.nodes.iter().find(|node| node.id == *package_id);
-            if node.is_none() {
-                return Err(format!(
-                    "failed to find the resolved dependencies for: {}",
-                    package_id
-                ));
-            }
-            let node = node.unwrap();
-            // todo: find transitive dependencies recursively
-            let dependencies: Vec<_> = node
-                .dependencies
-                .iter()
-                .map(|dep_id| {
-                    let dep = &metadata[dep_id];
-                    Dependency {
-                        name: dep.name.clone(),
-                        version: dep.version.to_string(),
-                    }
-                })
-                .collect();
+            let dependencies = get_transitive_dependencies(&metadata, package_id)?;
 
             docker_packages.push(DockerPackage {
                 name: package.name.clone(),
@@ -155,11 +180,44 @@ impl Context {
             })
         }
 
-        println!("{:?}", docker_packages);
-
         Ok(Context {
             target_dir: metadata.target_directory.to_string(),
             docker_packages,
         })
     }
+}
+
+fn get_transitive_dependencies(
+    metadata: &cargo_metadata::Metadata,
+    package_id: &PackageId,
+) -> Result<Vec<Dependency>, String> {
+    if metadata.resolve.is_none() {
+        return Err(format!(
+            "resolve section not found in the workspace: {}",
+            metadata.workspace_root
+        ));
+    }
+    let resolve = metadata.resolve.as_ref().unwrap();
+
+    // accumulating all the resolved dependencies
+    let node = resolve.nodes.iter().find(|node| node.id == *package_id);
+    if node.is_none() {
+        return Err(format!(
+            "failed to find the resolved dependencies for: {}",
+            package_id
+        ));
+    }
+    let node = node.unwrap();
+
+    let mut deps = vec![];
+    for dep_id in &node.dependencies {
+        let dep = &metadata[dep_id];
+        deps.push(Dependency {
+            name: dep.name.clone(),
+            version: dep.version.to_string(),
+        });
+        deps.append(&mut get_transitive_dependencies(metadata, dep_id)?);
+    }
+
+    Ok(deps)
 }

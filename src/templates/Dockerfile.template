@@ -1,3 +1,13 @@
 FROM {{ base }}
 
+{{ copy_cmd }}
+
+
+{{ run_cmd }}
+
+WORKDIR {{ workdir }}
+
+{{ user }}
+{{ expose }}
+
 CMD ["{{ executable }}"]
