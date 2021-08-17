@@ -2,7 +2,7 @@
 //! all relevant information for the rest of the commands, most notably
 //! the tree of workspace members containing a package.metadata.docker entry
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::{
     convert::{TryFrom, TryInto},
     vec,
@@ -20,6 +20,7 @@ pub struct Dependency {
 #[derive(Debug, Clone, Deserialize)]
 struct DockerMetadata {
     pub deps_hash: Option<String>,
+    pub base: String,
     pub copy: Option<Vec<CopyCommand>>,
     pub env: Option<Vec<EnvironmentVariable>>,
     pub run: Option<Vec<String>>,
@@ -42,13 +43,14 @@ pub struct CopyCommand {
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct EnvironmentVariable {
-    name: String,
-    value: String,
+    pub name: String,
+    pub value: String,
 }
 
 #[derive(Debug, Clone)]
 pub struct DockerSettings {
     pub deps_hash: Option<String>,
+    pub base: String,
     pub copy: Option<Vec<CopyCommand>>,
     pub env: Option<Vec<EnvironmentVariable>>,
     pub run: Option<Vec<String>>,
@@ -63,6 +65,23 @@ impl TryFrom<Metadata> for Option<DockerSettings> {
 
     fn try_from(value: Metadata) -> Result<Self, Self::Error> {
         if let Some(docker_metadata) = value.docker {
+            // validate having base FROM.
+            let base = &docker_metadata.base;
+            if base.trim().is_empty() {
+                return Err(format!("Container BASE cannot be empty"));
+            }
+
+            if let Some(workdir) = &docker_metadata.workdir {
+                if workdir.trim().is_empty() {
+                    return Err(format!("Working directory cannot be empty"));
+                }
+            }
+
+            if let Some(entrypoint) = &docker_metadata.workdir {
+                if entrypoint.trim().is_empty() {
+                    return Err(format!("Etry point cannot be empty"));
+                }
+            }
 
             // validate COPY commands
             if let Some(copy_commands) = &docker_metadata.copy {
@@ -70,16 +89,18 @@ impl TryFrom<Metadata> for Option<DockerSettings> {
                     if !Path::new(&copy_command.source).exists() {
                         return Err(format!("File {} doesn't exists", &copy_command.source));
                     }
-                    if !Path::new(&copy_command.destination).is_absolute(){
-                        return Err(format!("Destiantion file {} needs to be absolute", &copy_command.destination));
+                    if !Path::new(&copy_command.destination).is_absolute() {
+                        return Err(format!(
+                            "Destination file {} needs to be absolute",
+                            &copy_command.destination
+                        ));
                     }
-
                 }
             }
 
-
             Ok(Some(DockerSettings {
                 deps_hash: docker_metadata.deps_hash,
+                base: docker_metadata.base,
                 workdir: docker_metadata.workdir,
                 entrypoint: docker_metadata.entrypoint,
                 expose: docker_metadata.expose,
@@ -105,14 +126,16 @@ pub struct DockerPackage {
     pub dependencies: Vec<Dependency>,
 }
 
+
 pub struct Context {
-    pub target_dir: String,
+    pub target_dir: PathBuf,
+    pub debug_mode: bool,
     pub docker_packages: Vec<DockerPackage>,
 }
 
 impl Context {
     /// Building a context regardless of the planning and execution
-    pub fn build(cargo: &str) -> Result<Self, String> {
+    pub fn build(cargo: &str, is_debug:bool) -> Result<Self, String> {
         let mut cmd = cargo_metadata::MetadataCommand::new();
         // even if MetadataCommand::new() can find cargo using the env var
         // we don't want to run that logic twice
@@ -124,6 +147,8 @@ impl Context {
             return Err(format!("failed to run cargo metadata {}", e));
         }
         let metadata = metadata.unwrap();
+
+        
         let mut docker_packages = vec![];
         // for each workspace member, we're going to build a DockerPackage
         // contains binaries
@@ -180,9 +205,17 @@ impl Context {
             })
         }
 
+        let docker_packages_str = format!("{:?}", docker_packages);
+        println!("{}", docker_packages_str);
+
+        let mut target_dir = PathBuf::new();
+        target_dir.push(metadata.target_directory.as_path());
+        target_dir.push(if is_debug{"debug"} else{"release"});
+        
         Ok(Context {
-            target_dir: metadata.target_directory.to_string(),
-            docker_packages,
+            target_dir:target_dir,
+            debug_mode: is_debug,
+            docker_packages: docker_packages,
         })
     }
 }

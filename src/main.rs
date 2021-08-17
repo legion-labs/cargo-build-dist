@@ -16,44 +16,35 @@ fn main() -> Result<(), String> {
         .author("Legion Labs <devs@legionlabs.com>")
         .about("Help managing Docker images containing cargo build artifacts")
         .setting(AppSettings::ArgRequiredElseHelp)
-        .subcommand(
-            SubCommand::with_name("build")
-                .about("build docker images")
-                .arg(
-                    Arg::with_name("debug")
-                        .short("d")  
-                        .required(false)
-                        .help("print debug information verbosely"),
-                ),
+        .arg(
+            Arg::with_name("debug")
+                .short("d")
+                .required(false)
+                .help("print debug information verbosely"),
         )
-        .subcommand(
-            SubCommand::with_name("check")
-                .about("check docker images")
-                .arg(
-                    Arg::with_name("debug")
-                        .short("d")
-                        .required(false)
-                        .help("print debug information verbosely"),
-                ),
-        )
+        .subcommand(SubCommand::with_name("build").about("build docker images"))
+        .subcommand(SubCommand::with_name("check").about("check docker images"))
         .get_matches_from(&args[1..]);
 
-    let context = cargo_dockerize::Context::build(&cargo)?;
-    
+    let is_debug = matches.is_present("debug");
+    let context = cargo_dockerize::Context::build(&cargo, is_debug)?;
 
     // You can handle information about subcommands by requesting their matches by name
     // (as below), requesting just the name used, or both at the same time
     if let Some(matches) = matches.subcommand_matches("build") {
-        if matches.is_present("debug") {
-            // do cargo build --debug
-            cargo_dockerize::plan_build(&context, true);
-            cargo_dockerize::render();
-        } else {
-            // do cargo build --release
-            cargo_dockerize::plan_build(&context, false);
-            cargo_dockerize::render();
-        }
-    } 
+        cargo_dockerize::plan_build(&context);
+        cargo_dockerize::render();
+        
+        // if is_debug {
+        //     // do cargo build --debug
+        //     cargo_dockerize::plan_build(&context, true);
+        //     cargo_dockerize::render();
+        // } else {
+        //     // do cargo build --release
+        //     cargo_dockerize::plan_build(&context, false);
+        //     cargo_dockerize::render();
+        // }
+    }
 
     Ok(())
 }

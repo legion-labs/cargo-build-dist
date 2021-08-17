@@ -25,6 +25,7 @@ tera = "1"
 itertools="0.10"
 
 [package.metadata.docker]
+base = "ubuntu:20.04"
 deps_hash = "aaa"
 
 # example of usage of of docker commands: ENV, COPY, RUN, EXPOSE, WORKDIR, ENTRYPOINT
@@ -37,6 +38,7 @@ copy = [
     { source = "target/debug/cargo-dockerize", destination = "/usr/src/app" },
     { source = "target/debug/cargo-dockerize", destination = "/usr/src/app4" },
 ]
+user = "appuser"
 run = ["echo hello", "ls -al"]
 expose = [80, 8080]
 workdir = "/usr/src/app"

@@ -2,9 +2,13 @@
 //! build a full action plan that performs validation ahead of time,
 //! the earlier we fail the better.
 
+use cargo_toml::Error;
 use itertools::Itertools;
-use std::{ops::Add, path::PathBuf};
+use serde::__private::de::Content;
 use std::fs;
+use std::str::FromStr;
+use std::{ops::Add, path::PathBuf};
+use std::path::Path;
 
 use crate::DockerPackage;
 pub trait Action {
@@ -30,13 +34,32 @@ impl Dockerfile {
             tera.templates.insert(tpl_name.to_string(), template);
 
             let mut context = tera::Context::new();
-            context.insert("base", "ubuntu:20.04");
 
-            //let binaries = &docker_package.binaries;
-            
             // based on the dockersettings, we need to integrate the necessary docker commands
             // into the dockerfile.
-            let docker_setting = &docker_package.docker_settings;           
+
+            // FROM command
+            let docker_setting = &docker_package.docker_settings;
+            context.insert("base", &docker_setting.base);
+
+            // ENV command
+            let mut env_variables_str = String::new();
+            if let Some(env_variables) = &docker_setting.env {
+                if env_variables.is_empty() {
+                    return Err("failed to render template file".to_string());
+                } 
+                env_variables_str.push_str("ENV ");
+                for env_variable in env_variables{
+                    if env_variable.value.is_empty() || env_variable.name.is_empty(){
+                        return Err("Environment name and value should both exist".to_string())
+                    }
+                    env_variables_str.push_str(&format!("{}={} \\\n", env_variable.name, env_variable.value));
+
+                }
+            }
+            context.insert("env_variable", &env_variables_str);
+
+            // COPY command(s)
             let mut copy_commands_str = String::new();
             if let Some(copy_commands) = &docker_setting.copy {
                 for copy_command in copy_commands {
@@ -48,7 +71,9 @@ impl Dockerfile {
                     copy_commands_str += &copy_command_str;
                 }
             }
+            context.insert("copy_cmd", &copy_commands_str);
 
+            // RUN command(s)
             let mut run_commands_str = String::new();
             if let Some(run_commands) = &docker_setting.run {
                 if !run_commands.is_empty() {
@@ -59,7 +84,24 @@ impl Dockerfile {
                     }
                 }
             }
+            context.insert("run_cmd", &run_commands_str);
 
+            // ADD USER command
+            let mut user_cmd_str = String::new();
+            if let Some(user) = &docker_setting.user {
+                user_cmd_str.push_str("USER ");
+                user_cmd_str.push_str(user);
+            }
+            context.insert("user_cmd", &user_cmd_str);
+
+            // WORKDIR command
+            let mut wordir_cmd_str = String::new();
+            if let Some(workdir) = &docker_setting.workdir {
+                wordir_cmd_str.push_str(workdir);
+            }
+            context.insert("workdir_cmd", &wordir_cmd_str);
+
+            // EXPOSE command
             let mut expose_command_str = String::new();
             if let Some(ports) = &docker_setting.expose {
                 if !ports.is_empty() {
@@ -68,25 +110,18 @@ impl Dockerfile {
                     expose_command_str.push_str(&ports_str);
                 }
             }
+            context.insert("expose_cmd", &expose_command_str);
 
-            let mut wordir_cmd_str = String::new();
-            if let Some(workdir)=  &docker_setting.workdir {
-                wordir_cmd_str.push_str(workdir);
-            }
-
-            let mut user_cmd_str = String::new();
-            if let Some(user)=  &docker_setting.user {
-                user_cmd_str.push_str(user);
-            }
-
-
-            context.insert("copy_cmd", &copy_commands_str);
-            context.insert("run_cmd", &run_commands_str);
-            context.insert("expose", &expose_command_str);
+            // Todo: validate intention ?
+            // To be discussed with others....
+            // Can not infer that that binary should be use as executable.
+            // if we have multiple binaries in our binaries vector, which one should be executed and on which order ?
+            // We can also implement the ENTRYPOINT command, but in this case, CMD command is not relevant anymore.
+            //let binaries = &docker_package.binaries;
+            // ENTRYPOINT vs CMD command
             context.insert("executable", "cargo-dockerize");
-            context.insert("user",&user_cmd_str);
-            context.insert("workdir", &wordir_cmd_str);
 
+            
             if let Ok(content) = tera.render(tpl_name, &context) {
                 println!("{}", content);
                 Ok(Self {
@@ -104,6 +139,7 @@ impl Dockerfile {
 
 impl Action for Dockerfile {
     fn run(&self) -> Result<(), String> {
+        println!("-----------------------action for Dockerfile-----------------");
         if let Err(e) = std::fs::write(&self.path, &self.content) {
             Err(format!("failed to write docker file {}", e))
         } else {
@@ -112,42 +148,92 @@ impl Action for Dockerfile {
     }
 }
 
-struct CopyBinaryFile {
-    source_path: PathBuf,
-    destination_path: PathBuf
-}
 
-impl CopyBinaryFile{
-    fn new(docker_package: &DockerPackage) -> Result<Self, String> {
-        if 1==1 {
-            Ok(Self {
-                source_path:"".into(),
-                destination_path:"".into(),
-            })
-        } else{
-            Err("failed to copy binary file".to_string())
-        }
-    }
-}
 
-impl Action for CopyBinaryFile {
-    fn run(&self) -> Result<(), String> {
-        if let Err(e) = fs::copy(&self.source_path, &self.destination_path) {
-            Err(format!("failed to copy binary file {}", e))
-        } else {
-            Ok(())
-        }
-    }
+struct CopyFile{
+    source:PathBuf,
+    destination:PathBuf
 }
+// struct CopiedFiles {
+//     files: Vec<CopyFile>,
+// }
 
-pub fn plan_build(context: &super::Context, debug: bool) -> Result<Vec<Box<dyn Action>>, String> {
+// impl CopiedFiles{
+//     fn new(docker_package: &DockerPackage, target_dir:PathBuf, debug:bool) -> Result<Self, String> {
+//         let mut copied_files: Vec<CopyFile>;
+
+//         for binary in &docker_package.binaries{
+//             if !binary.is_file() || !binary.exists() {
+//                 return Err(format!("Binary {:?} doesn't exists or is not a file", binary));
+//             }
+//             let mut package_target_path = PathBuf::new()
+//             package_target_path.push(target_dir);
+//             package_target_path.push(if debug {"debug"} else {"release"});
+
+//         }
+//         Ok(Self {
+            
+//         }
+//         )
+
+//     }
+// }
+
+
+
+// impl CopyBinaryFile {
+//     fn new(docker_package: &DockerPackage, target_dir: &String, debug: bool) -> Result<Self, String> {
+
+//         // Prepare a package including:
+//         // /release|debug/docker/application-name/binary-file
+//         let mut package_target_path = PathBuf::new();
+//         package_target_path.push(target_dir);
+//         package_target_path.push(if debug {"debug"} else {"release"});
+        
+//         let mut package_target_docker_path = PathBuf::new();
+//         package_target_docker_path.push(package_target_path.as_path());
+//         package_target_docker_path.push("Docker");
+//         package_target_docker_path.push(&docker_package.name);
+
+//         let mut binaries_path: Vec<CopyBinary>;
+//         for binary in &docker_package.binaries{
+//             let mut source_binary_path= PathBuf::new();
+//             source_binary_path.push(package_target_path.as_path());
+//             source_binary_path.push(binary);
+            
+//             let mut destination_binary_docker_path = PathBuf::new();
+//             destination_binary_docker_path.push(package_target_docker_path.as_path());
+//             destination_binary_docker_path.push(binary);
+            
+//             if !std::path::Path::new(&source_binary_path).exists(){
+//                 Err("failed to render template file".to_string())
+//             }
+//             let cb = CopyBinary{source_path:source_binary_path, destination_path:destination_binary_docker_path};
+//             binaries_path.push(cb);
+//         }
+//         Ok(Self{
+//             binaries_path
+//         })
+// }
+
+// impl Action for CopyBinaryFile {
+//     fn run(&self) -> Result<(), String> {
+//         if let Err(e) = fs::copy(&self.source_path, &self.destination_path) {
+//             Err(format!("failed to copy binary file {}", e))
+//         } else {
+//             Ok(())
+//         }
+//     }
+// }
+
+pub fn plan_build(context: &super::Context) -> Result<Vec<Box<dyn Action>>, String> {
     // plan cargo build
     // plan files copies
     // plan Dockerfile creation:
     let mut actions: Vec<Box<dyn Action>> = vec![];
+
     for docker_package in &context.docker_packages {
         actions.push(Box::new(Dockerfile::new(docker_package)?));
-        actions.push(Box::new(CopyBinaryFile::new(docker_package)?));
     }
     Ok(actions)
 }

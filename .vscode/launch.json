@@ -21,8 +21,9 @@
             },
             "args": [
                 "dockerize",
+                "-d",
                 "build",
-                "-d"
+
             ],
             "cwd": "${workspaceFolder}",
             "env": {
