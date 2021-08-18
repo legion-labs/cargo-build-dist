@@ -155,17 +155,6 @@ struct CopyFile {
     destination: PathBuf,
 }
 
-// impl CopyFile {
-//     fn new(filename: String, target_dir: &PathBuf) -> Result<Self, String> {
-
-//         Ok(Self {
-//             name: filename,
-//             source: source,
-//             destination: destination,
-//         })
-//     }
-// }
-
 struct CopyFiles {
     copy_files: Vec<CopyFile>,
 }
@@ -185,6 +174,7 @@ impl CopyFiles {
             let mut destination = PathBuf::new();
             destination.push(target_dir);
             destination.push("docker");
+            destination.push(binary);
 
             copy_files.push(CopyFile {
                 name: binary.to_string(),

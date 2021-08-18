@@ -32,8 +32,15 @@ fn main() -> Result<(), String> {
     // You can handle information about subcommands by requesting their matches by name
     // (as below), requesting just the name used, or both at the same time
     if let Some(matches) = matches.subcommand_matches("build") {
-        cargo_dockerize::plan_build(&context);
-        cargo_dockerize::render();
+        if let Ok(actions) = cargo_dockerize::plan_build(&context){
+            for action in actions{
+                action.run();
+            }
+            
+            cargo_dockerize::render();
+        }
+        
+        
     }
 
     Ok(())
