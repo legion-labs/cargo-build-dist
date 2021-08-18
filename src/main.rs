@@ -34,16 +34,6 @@ fn main() -> Result<(), String> {
     if let Some(matches) = matches.subcommand_matches("build") {
         cargo_dockerize::plan_build(&context);
         cargo_dockerize::render();
-        
-        // if is_debug {
-        //     // do cargo build --debug
-        //     cargo_dockerize::plan_build(&context, true);
-        //     cargo_dockerize::render();
-        // } else {
-        //     // do cargo build --release
-        //     cargo_dockerize::plan_build(&context, false);
-        //     cargo_dockerize::render();
-        // }
     }
 
     Ok(())

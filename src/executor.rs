@@ -4,5 +4,5 @@
 
 /// trying the use of template, easier than manipulating strings
 pub fn render() {
-
+    
 }

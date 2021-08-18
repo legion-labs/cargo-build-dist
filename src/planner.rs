@@ -6,9 +6,9 @@ use cargo_toml::Error;
 use itertools::Itertools;
 use serde::__private::de::Content;
 use std::fs;
+use std::path::Path;
 use std::str::FromStr;
 use std::{ops::Add, path::PathBuf};
-use std::path::Path;
 
 use crate::DockerPackage;
 pub trait Action {
@@ -47,14 +47,16 @@ impl Dockerfile {
             if let Some(env_variables) = &docker_setting.env {
                 if env_variables.is_empty() {
                     return Err("failed to render template file".to_string());
-                } 
+                }
                 env_variables_str.push_str("ENV ");
-                for env_variable in env_variables{
-                    if env_variable.value.is_empty() || env_variable.name.is_empty(){
-                        return Err("Environment name and value should both exist".to_string())
+                for env_variable in env_variables {
+                    if env_variable.value.is_empty() || env_variable.name.is_empty() {
+                        return Err("Environment name and value should both exist".to_string());
                     }
-                    env_variables_str.push_str(&format!("{}={} \\\n", env_variable.name, env_variable.value));
-
+                    env_variables_str.push_str(&format!(
+                        "{}={} \\\n",
+                        env_variable.name, env_variable.value
+                    ));
                 }
             }
             context.insert("env_variable", &env_variables_str);
@@ -121,7 +123,6 @@ impl Dockerfile {
             // ENTRYPOINT vs CMD command
             context.insert("executable", "cargo-dockerize");
 
-            
             if let Ok(content) = tera.render(tpl_name, &context) {
                 println!("{}", content);
                 Ok(Self {
@@ -148,83 +149,64 @@ impl Action for Dockerfile {
     }
 }
 
-
-
-struct CopyFile{
-    source:PathBuf,
-    destination:PathBuf
+struct CopyFile {
+    name: String,
+    source: PathBuf,
+    destination: PathBuf,
 }
-// struct CopiedFiles {
-//     files: Vec<CopyFile>,
-// }
 
-// impl CopiedFiles{
-//     fn new(docker_package: &DockerPackage, target_dir:PathBuf, debug:bool) -> Result<Self, String> {
-//         let mut copied_files: Vec<CopyFile>;
+// impl CopyFile {
+//     fn new(filename: String, target_dir: &PathBuf) -> Result<Self, String> {
 
-//         for binary in &docker_package.binaries{
-//             if !binary.is_file() || !binary.exists() {
-//                 return Err(format!("Binary {:?} doesn't exists or is not a file", binary));
-//             }
-//             let mut package_target_path = PathBuf::new()
-//             package_target_path.push(target_dir);
-//             package_target_path.push(if debug {"debug"} else {"release"});
-
-//         }
 //         Ok(Self {
-            
-//         }
-//         )
-
-//     }
-// }
-
-
-
-// impl CopyBinaryFile {
-//     fn new(docker_package: &DockerPackage, target_dir: &String, debug: bool) -> Result<Self, String> {
-
-//         // Prepare a package including:
-//         // /release|debug/docker/application-name/binary-file
-//         let mut package_target_path = PathBuf::new();
-//         package_target_path.push(target_dir);
-//         package_target_path.push(if debug {"debug"} else {"release"});
-        
-//         let mut package_target_docker_path = PathBuf::new();
-//         package_target_docker_path.push(package_target_path.as_path());
-//         package_target_docker_path.push("Docker");
-//         package_target_docker_path.push(&docker_package.name);
-
-//         let mut binaries_path: Vec<CopyBinary>;
-//         for binary in &docker_package.binaries{
-//             let mut source_binary_path= PathBuf::new();
-//             source_binary_path.push(package_target_path.as_path());
-//             source_binary_path.push(binary);
-            
-//             let mut destination_binary_docker_path = PathBuf::new();
-//             destination_binary_docker_path.push(package_target_docker_path.as_path());
-//             destination_binary_docker_path.push(binary);
-            
-//             if !std::path::Path::new(&source_binary_path).exists(){
-//                 Err("failed to render template file".to_string())
-//             }
-//             let cb = CopyBinary{source_path:source_binary_path, destination_path:destination_binary_docker_path};
-//             binaries_path.push(cb);
-//         }
-//         Ok(Self{
-//             binaries_path
+//             name: filename,
+//             source: source,
+//             destination: destination,
 //         })
-// }
-
-// impl Action for CopyBinaryFile {
-//     fn run(&self) -> Result<(), String> {
-//         if let Err(e) = fs::copy(&self.source_path, &self.destination_path) {
-//             Err(format!("failed to copy binary file {}", e))
-//         } else {
-//             Ok(())
-//         }
 //     }
 // }
+
+struct CopyFiles {
+    copy_files: Vec<CopyFile>,
+}
+
+impl CopyFiles {
+    fn new(docker_package: &DockerPackage, target_dir: &PathBuf) -> Result<Self, String> {
+        let mut copy_files= vec![];
+        for binary in &docker_package.binaries {
+            let mut source = PathBuf::new();
+            source.push(target_dir);
+            source.push(binary);
+
+            if !source.exists(){
+                return Err(format!("file {:?} does'nt exist", source));
+            }
+
+            let mut destination = PathBuf::new();
+            destination.push(target_dir);
+            destination.push("docker");
+
+            copy_files.push(CopyFile {
+                name: binary.to_string(),
+                source: source,
+                destination: destination,
+            });
+        }
+        Ok(Self { copy_files })
+    }
+}
+
+impl Action for CopyFiles {
+    fn run(&self) -> Result<(), String> {
+        println!("-------------------------action for CopyFiles----------------------");
+        for copy_file in &self.copy_files{
+            if let Err(e) = fs::copy(&copy_file.source, &copy_file.destination){
+                return Err(format!("failed to copy file {}", e));
+            }
+        }
+        Ok(())
+    }
+}
 
 pub fn plan_build(context: &super::Context) -> Result<Vec<Box<dyn Action>>, String> {
     // plan cargo build
@@ -234,6 +216,10 @@ pub fn plan_build(context: &super::Context) -> Result<Vec<Box<dyn Action>>, Stri
 
     for docker_package in &context.docker_packages {
         actions.push(Box::new(Dockerfile::new(docker_package)?));
+        actions.push(Box::new(CopyFiles::new(
+            docker_package,
+            &context.target_dir,
+        )?));
     }
     Ok(actions)
 }

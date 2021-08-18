@@ -148,7 +148,10 @@ impl Context {
         }
         let metadata = metadata.unwrap();
 
-        
+        let mut target_dir = PathBuf::new();
+        target_dir.push(metadata.target_directory.as_path());
+        target_dir.push(if is_debug{"debug"} else{"release"});
+
         let mut docker_packages = vec![];
         // for each workspace member, we're going to build a DockerPackage
         // contains binaries
@@ -180,6 +183,9 @@ impl Context {
                 .filter_map(|target| {
                     if target.kind.contains(&"bin".to_string()) {
                         Some(target.name.clone())
+                         
+                    
+                       
                     } else {
                         None
                     }
@@ -208,9 +214,7 @@ impl Context {
         let docker_packages_str = format!("{:?}", docker_packages);
         println!("{}", docker_packages_str);
 
-        let mut target_dir = PathBuf::new();
-        target_dir.push(metadata.target_directory.as_path());
-        target_dir.push(if is_debug{"debug"} else{"release"});
+        
         
         Ok(Context {
             target_dir:target_dir,
