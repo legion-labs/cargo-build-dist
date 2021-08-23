@@ -5,12 +5,13 @@
 use cargo_toml::Error;
 use itertools::Itertools;
 use serde::__private::de::Content;
-use std::fs;
+use std::fs::{self, create_dir};
 use std::path::Path;
 use std::str::FromStr;
 use std::{ops::Add, path::PathBuf};
 
-use crate::DockerPackage;
+use crate::{CopyCommand, DockerPackage, EnvironmentVariable, TargetDir};
+
 pub trait Action {
     fn run(&self) -> Result<(), String>;
 }
@@ -43,50 +44,21 @@ impl Dockerfile {
             context.insert("base", &docker_setting.base);
 
             // ENV command
-            let mut env_variables_str = String::new();
-            if let Some(env_variables) = &docker_setting.env {
-                if env_variables.is_empty() {
-                    return Err("failed to render template file".to_string());
-                }
-                env_variables_str.push_str("ENV ");
-                for env_variable in env_variables {
-                    if env_variable.value.is_empty() || env_variable.name.is_empty() {
-                        return Err("Environment name and value should both exist".to_string());
-                    }
-                    env_variables_str.push_str(&format!(
-                        "{}={} \\\n",
-                        env_variable.name, env_variable.value
-                    ));
-                }
+            if let Ok(_str) = build_env_variables_command_str(&docker_setting.env) {
+                context.insert("env_variable", &_str);
             }
-            context.insert("env_variable", &env_variables_str);
 
             // COPY command(s)
-            let mut copy_commands_str = String::new();
-            if let Some(copy_commands) = &docker_setting.copy {
-                for copy_command in copy_commands {
-                    let mut copy_command_str = "COPY".to_string();
-                    copy_command_str = format!(
-                        "{} {} {} \n",
-                        copy_command_str, &copy_command.source, &copy_command.destination
-                    );
-                    copy_commands_str += &copy_command_str;
-                }
+            if let Ok(_str) =
+                build_copy_command_str(&docker_package.binaries, &docker_setting.copy_dest_dir)
+            {
+                context.insert("copy_cmd", &_str);
             }
-            context.insert("copy_cmd", &copy_commands_str);
 
             // RUN command(s)
-            let mut run_commands_str = String::new();
-            if let Some(run_commands) = &docker_setting.run {
-                if !run_commands.is_empty() {
-                    run_commands_str.push_str("RUN ");
-                    for run_command in run_commands {
-                        run_commands_str.push_str(run_command);
-                        run_commands_str.push_str("\n");
-                    }
-                }
+            if let Ok(_str) = build_run_command_str(&docker_setting.run) {
+                context.insert("run_cmd", &_str);
             }
-            context.insert("run_cmd", &run_commands_str);
 
             // ADD USER command
             let mut user_cmd_str = String::new();
@@ -124,10 +96,12 @@ impl Dockerfile {
             context.insert("executable", "cargo-dockerize");
 
             if let Ok(content) = tera.render(tpl_name, &context) {
-                println!("{}", content);
+                let mut docker_file_path = PathBuf::new();
+                docker_file_path.push(docker_package.target_dir.docker_dir.clone());
+                docker_file_path.push(tpl_name.to_string());
                 Ok(Self {
                     content,
-                    path: "".into(),
+                    path: docker_file_path,
                 })
             } else {
                 Err("failed to render template file".to_string())
@@ -140,7 +114,14 @@ impl Dockerfile {
 
 impl Action for Dockerfile {
     fn run(&self) -> Result<(), String> {
-        println!("-----------------------action for Dockerfile-----------------");
+        if let Some(docker_dir) = self.path.parent() {
+            if !docker_dir.exists() {
+                if let Err(e) = std::fs::create_dir_all(docker_dir) {
+                    return Err(format!("failed to write docker file {}", e));
+                }
+            }
+        }
+
         if let Err(e) = std::fs::write(&self.path, &self.content) {
             Err(format!("failed to write docker file {}", e))
         } else {
@@ -150,7 +131,6 @@ impl Action for Dockerfile {
 }
 
 struct CopyFile {
-    name: String,
     source: PathBuf,
     destination: PathBuf,
 }
@@ -160,26 +140,24 @@ struct CopyFiles {
 }
 
 impl CopyFiles {
-    fn new(docker_package: &DockerPackage, target_dir: &PathBuf) -> Result<Self, String> {
-        let mut copy_files= vec![];
+    fn new(docker_package: &DockerPackage) -> Result<Self, String> {
+        let mut copy_files = vec![];
         for binary in &docker_package.binaries {
             let mut source = PathBuf::new();
-            source.push(target_dir);
+            source.push(&docker_package.target_dir.binary_dir);
             source.push(binary);
 
-            if !source.exists(){
-                return Err(format!("file {:?} does'nt exist", source));
+            if !source.exists() {
+                return Err(format!("file {} does'nt exist", source.display()));
             }
 
             let mut destination = PathBuf::new();
-            destination.push(target_dir);
-            destination.push("docker");
+            destination.push(&docker_package.target_dir.docker_dir);
             destination.push(binary);
 
             copy_files.push(CopyFile {
-                name: binary.to_string(),
-                source: source,
-                destination: destination,
+                source,
+                destination,
             });
         }
         Ok(Self { copy_files })
@@ -188,9 +166,8 @@ impl CopyFiles {
 
 impl Action for CopyFiles {
     fn run(&self) -> Result<(), String> {
-        println!("-------------------------action for CopyFiles----------------------");
-        for copy_file in &self.copy_files{
-            if let Err(e) = fs::copy(&copy_file.source, &copy_file.destination){
+        for copy_file in &self.copy_files {
+            if let Err(e) = fs::copy(&copy_file.source, &copy_file.destination) {
                 return Err(format!("failed to copy file {}", e));
             }
         }
@@ -201,17 +178,51 @@ impl Action for CopyFiles {
 pub fn plan_build(context: &super::Context) -> Result<Vec<Box<dyn Action>>, String> {
     // plan cargo build
     // plan files copies
-    // plan Dockerfile creation:
+    // plan Dockerfile creation
     let mut actions: Vec<Box<dyn Action>> = vec![];
-
     for docker_package in &context.docker_packages {
         actions.push(Box::new(Dockerfile::new(docker_package)?));
-        actions.push(Box::new(CopyFiles::new(
-            docker_package,
-            &context.target_dir,
-        )?));
+        actions.push(Box::new(CopyFiles::new(docker_package)?));
     }
     Ok(actions)
+}
+
+fn build_env_variables_command_str(
+    env_variables: &Option<Vec<EnvironmentVariable>>,
+) -> Result<String, String> {
+    let mut env_variables_command_str = String::new();
+    if let Some(variables) = env_variables {
+        env_variables_command_str.push_str("ENV ");
+        let env_variables: Vec<String> = variables
+            .iter()
+            .filter(|var| !var.name.is_empty() && !var.value.is_empty())
+            .map(|var| format!("{}={}", var.name, var.value))
+            .collect();
+        env_variables_command_str.push_str(&env_variables.iter().join("\\\n"));
+    }
+    Ok(env_variables_command_str)
+}
+
+fn build_run_command_str(run_cmd: &Option<Vec<String>>) -> Result<String, String> {
+    let mut run_command_str = String::new();
+    if let Some(runs) = run_cmd {
+        run_command_str.push_str("RUN ");
+        run_command_str.push_str(&runs.iter().join(" \\\n"));
+    }
+    Ok(run_command_str)
+}
+
+fn build_copy_command_str(binaries: &Vec<String>, dest_dir: &String) -> Result<String, String> {
+    let mut copy_binaries_command_str = String::new();
+    if binaries.is_empty() {
+        return Err("failed binaries is empty".to_string());
+    } else {
+        for binary in binaries {
+            copy_binaries_command_str.push_str("COPY ");
+            copy_binaries_command_str.push_str(&format!("{} {} \n\n", binary, dest_dir))
+        }
+    }
+    Ok(copy_binaries_command_str)
 }
 
 fn escape_docker(input: &str) -> String {

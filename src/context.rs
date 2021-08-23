@@ -11,7 +11,10 @@ use std::{
 use cargo_metadata::PackageId;
 use serde::Deserialize;
 
-#[derive(Debug, Clone)]
+use std::collections::HashSet;
+use std::iter::FromIterator;
+
+#[derive(Hash, Eq, PartialEq, Debug, Clone)]
 pub struct Dependency {
     pub name: String,
     pub version: String,
@@ -21,7 +24,7 @@ pub struct Dependency {
 struct DockerMetadata {
     pub deps_hash: Option<String>,
     pub base: String,
-    pub copy: Option<Vec<CopyCommand>>,
+    pub copy_dest_dir: String,
     pub env: Option<Vec<EnvironmentVariable>>,
     pub run: Option<Vec<String>>,
     pub expose: Option<Vec<i32>>,
@@ -47,11 +50,17 @@ pub struct EnvironmentVariable {
     pub value: String,
 }
 
+#[derive(Debug, Clone, Deserialize)]
+pub struct TargetDir {
+    pub binary_dir: PathBuf,
+    pub docker_dir: PathBuf,
+}
+
 #[derive(Debug, Clone)]
 pub struct DockerSettings {
     pub deps_hash: Option<String>,
     pub base: String,
-    pub copy: Option<Vec<CopyCommand>>,
+    pub copy_dest_dir: String,
     pub env: Option<Vec<EnvironmentVariable>>,
     pub run: Option<Vec<String>>,
     pub expose: Option<Vec<i32>>,
@@ -71,31 +80,46 @@ impl TryFrom<Metadata> for Option<DockerSettings> {
                 return Err(format!("Container BASE cannot be empty"));
             }
 
+            if let Some(user) = &docker_metadata.user {
+                if user.trim().is_empty() {
+                    return Err(format!("User cannot be empty"));
+                }
+            }
+
             if let Some(workdir) = &docker_metadata.workdir {
                 if workdir.trim().is_empty() {
                     return Err(format!("Working directory cannot be empty"));
                 }
             }
 
-            if let Some(entrypoint) = &docker_metadata.workdir {
+            if let Some(entrypoint) = &docker_metadata.entrypoint {
                 if entrypoint.trim().is_empty() {
-                    return Err(format!("Etry point cannot be empty"));
+                    return Err(format!("Entrypoint cannot be empty"));
+                }
+            }
+
+            if let Some(runs) = &docker_metadata.run {
+                if runs.is_empty() {
+                    return Err(format!("Runs commands cannot be empty"));
+                } else {
+                    for run in runs {
+                        if run.trim().is_empty() {
+                            return Err(format!("Run command cannot be empty"));
+                        }
+                    }
+                }
+            }
+
+            if let Some(ports) = &docker_metadata.expose {
+                if ports.is_empty() {
+                    return Err(format!("Port cannot be empty"));
                 }
             }
 
             // validate COPY commands
-            if let Some(copy_commands) = &docker_metadata.copy {
-                for copy_command in copy_commands {
-                    if !Path::new(&copy_command.source).exists() {
-                        return Err(format!("File {} doesn't exists", &copy_command.source));
-                    }
-                    if !Path::new(&copy_command.destination).is_absolute() {
-                        return Err(format!(
-                            "Destination file {} needs to be absolute",
-                            &copy_command.destination
-                        ));
-                    }
-                }
+            let copy_dest_dir = &docker_metadata.copy_dest_dir;
+            if copy_dest_dir.trim().is_empty() {
+                return Err(format!("Copy destination directory cannot be empty"));
             }
 
             Ok(Some(DockerSettings {
@@ -106,7 +130,7 @@ impl TryFrom<Metadata> for Option<DockerSettings> {
                 expose: docker_metadata.expose,
                 run: docker_metadata.run,
                 env: docker_metadata.env,
-                copy: docker_metadata.copy,
+                copy_dest_dir: docker_metadata.copy_dest_dir,
                 user: docker_metadata.user,
             }))
         } else {
@@ -122,20 +146,19 @@ pub struct DockerPackage {
     pub toml_path: String,
     pub binaries: Vec<String>,
     pub docker_settings: DockerSettings,
-    // transitive dependencies
-    pub dependencies: Vec<Dependency>,
-}
 
+    pub dependencies: HashSet<Dependency>,
+    pub target_dir: TargetDir,
+}
 
 pub struct Context {
     pub target_dir: PathBuf,
-    pub debug_mode: bool,
     pub docker_packages: Vec<DockerPackage>,
 }
 
 impl Context {
     /// Building a context regardless of the planning and execution
-    pub fn build(cargo: &str, is_debug:bool) -> Result<Self, String> {
+    pub fn build(cargo: &str, is_debug: bool) -> Result<Self, String> {
         let mut cmd = cargo_metadata::MetadataCommand::new();
         // even if MetadataCommand::new() can find cargo using the env var
         // we don't want to run that logic twice
@@ -150,7 +173,7 @@ impl Context {
 
         let mut target_dir = PathBuf::new();
         target_dir.push(metadata.target_directory.as_path());
-        target_dir.push(if is_debug{"debug"} else{"release"});
+        target_dir.push(if is_debug { "debug" } else { "release" });
 
         let mut docker_packages = vec![];
         // for each workspace member, we're going to build a DockerPackage
@@ -183,9 +206,6 @@ impl Context {
                 .filter_map(|target| {
                     if target.kind.contains(&"bin".to_string()) {
                         Some(target.name.clone())
-                         
-                    
-                       
                     } else {
                         None
                     }
@@ -200,6 +220,12 @@ impl Context {
             }
 
             let dependencies = get_transitive_dependencies(&metadata, package_id)?;
+            let dependencies = dependency_hash_to_set(dependencies);
+
+            let mut docker_dir = PathBuf::new();
+            docker_dir.push(target_dir.clone());
+            docker_dir.push("docker");
+            docker_dir.push(package.name.clone());
 
             docker_packages.push(DockerPackage {
                 name: package.name.clone(),
@@ -208,18 +234,19 @@ impl Context {
                 binaries,
                 docker_settings,
                 dependencies,
+                target_dir: TargetDir {
+                    binary_dir: target_dir.clone(),
+                    docker_dir: docker_dir,
+                },
             })
         }
 
-        let docker_packages_str = format!("{:?}", docker_packages);
-        println!("{}", docker_packages_str);
+        //let docker_packages_str = format!("{:?}", docker_packages);
+        //println!("{}", docker_packages_str);
 
-        
-        
         Ok(Context {
-            target_dir:target_dir,
-            debug_mode: is_debug,
-            docker_packages: docker_packages,
+            target_dir,
+            docker_packages,
         })
     }
 }
@@ -257,4 +284,8 @@ fn get_transitive_dependencies(
     }
 
     Ok(deps)
+}
+
+fn dependency_hash_to_set(vec: Vec<Dependency>) -> HashSet<Dependency> {
+    HashSet::from_iter(vec)
 }

@@ -33,15 +33,12 @@ fn main() -> Result<(), String> {
     // (as below), requesting just the name used, or both at the same time
     if let Some(matches) = matches.subcommand_matches("build") {
         if let Ok(actions) = cargo_dockerize::plan_build(&context){
-            for action in actions{
-                action.run();
-            }
-            
-            cargo_dockerize::render();
+            cargo_dockerize::render(actions);
         }
-        
-        
     }
 
     Ok(())
 }
+
+
+    

@@ -4,11 +4,11 @@ FROM {{ base }}
 
 {{ copy_cmd }}
 
+WORKDIR {{ workdir_cmd }}
+
 {{ run_cmd }}
 
 {{ user_cmd }}
-
-WORKDIR {{ workdir_cmd }}
 
 {{ expose_cmd }}
 

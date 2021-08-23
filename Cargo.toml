@@ -22,22 +22,17 @@ clap = "2"
 serde = "1"
 serde_json = "1"
 tera = "1"
-itertools="0.10"
+itertools = "0.10"
 
 [package.metadata.docker]
 base = "ubuntu:20.04"
 deps_hash = "aaa"
-
-# example of usage of of docker commands: ENV, COPY, RUN, EXPOSE, WORKDIR, ENTRYPOINT
 env = [
     { name = "TZ", value = "Etc/UTC" },
     { name = "APP_USER", value = "appuser" },
     { name = "APP", value = "/usr/src/app" },
 ]
-copy = [
-    { source = "target/debug/cargo-dockerize", destination = "/usr/src/app" },
-    { source = "target/debug/cargo-dockerize", destination = "/usr/src/app4" },
-]
+copy_dest_dir = "/usr/surc/app"
 user = "appuser"
 run = ["echo hello", "ls -al"]
 expose = [80, 8080]
