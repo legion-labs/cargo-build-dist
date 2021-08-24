@@ -6,7 +6,10 @@ use cargo_toml::Error;
 use itertools::Itertools;
 use serde::__private::de::Content;
 use std::fs::{self, create_dir};
+use std::os::unix::prelude::CommandExt;
 use std::path::Path;
+use std::process::Command;
+
 use std::str::FromStr;
 use std::{ops::Add, path::PathBuf};
 
@@ -175,6 +178,39 @@ impl Action for CopyFiles {
     }
 }
 
+// struct CargoBuildCommand {
+//     manifest_path: Option<PathBuf>,
+// }
+
+// impl CargoBuildCommand {
+//     fn new(manifest_path: PathBuf) -> Result<Self, String> {
+//         if let Some(manifest_path) = 
+//         .exists() {
+//             return Err(format!(
+//                 "failed to find the cargo-manifest file {}",
+//                 &manifest_path.display()
+//             ));
+//         }
+//         Ok(Self {
+//             manifest_path
+//         })
+//     }
+// }
+
+// impl Action for CargoBuildCommand {
+//     fn run(&self) -> Result<(), String> {
+//         if let Err(e) = Command::new("cargo")
+//              .arg("build")
+//         //     .arg("--manifest-path")
+//         //     .arg(&self.manifest_path)
+//              .output()
+//         {
+//              return Err(format!("fail to execute cargo build {}", e));
+//         }
+//         Ok(())
+//     }
+// }
+
 pub fn plan_build(context: &super::Context) -> Result<Vec<Box<dyn Action>>, String> {
     // plan cargo build
     // plan files copies
@@ -198,7 +234,7 @@ fn build_env_variables_command_str(
             .filter(|var| !var.name.is_empty() && !var.value.is_empty())
             .map(|var| format!("{}={}", var.name, var.value))
             .collect();
-        env_variables_command_str.push_str(&env_variables.iter().join("\\\n"));
+        env_variables_command_str.push_str(&env_variables.iter().join(" \\\n"));
     }
     Ok(env_variables_command_str)
 }

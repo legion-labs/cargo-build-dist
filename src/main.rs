@@ -1,4 +1,4 @@
-use std::env;
+use std::{env, path::PathBuf};
 
 use clap::{App, AppSettings, Arg, SubCommand};
 
@@ -22,23 +22,38 @@ fn main() -> Result<(), String> {
                 .required(false)
                 .help("print debug information verbosely"),
         )
+        .arg(
+            Arg::with_name("manifest-path")
+                .short("m")
+                .takes_value(true)
+                .required(false)
+                .help("Path to Cargo.toml"),
+        )
         .subcommand(SubCommand::with_name("build").about("build docker images"))
         .subcommand(SubCommand::with_name("check").about("check docker images"))
         .get_matches_from(&args[1..]);
 
+    if let Some(_path) = matches.value_of("manifest-path") {
+        if _path.trim().is_empty() {
+            return Err(format!("manifest-path cannot be empty"));
+        }
+    }
     let is_debug = matches.is_present("debug");
-    let context = cargo_dockerize::Context::build(&cargo, is_debug)?;
+    let context =
+        cargo_dockerize::Context::build(&cargo, is_debug, matches.value_of("manifest-path"))?;
 
     // You can handle information about subcommands by requesting their matches by name
     // (as below), requesting just the name used, or both at the same time
     if let Some(matches) = matches.subcommand_matches("build") {
-        if let Ok(actions) = cargo_dockerize::plan_build(&context){
+        println!("Execute build");
+
+        if let Ok(actions) = cargo_dockerize::plan_build(&context) {
             cargo_dockerize::render(actions);
         }
+    }
+    if let Some(mymatches) = matches.subcommand_matches("check") {
+        println!("Execute check {:?}", mymatches);
     }
 
     Ok(())
 }
-
-
-    

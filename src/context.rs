@@ -10,6 +10,7 @@ use std::{
 
 use cargo_metadata::PackageId;
 use serde::Deserialize;
+use serde_json::from_str;
 
 use std::collections::HashSet;
 use std::iter::FromIterator;
@@ -158,12 +159,21 @@ pub struct Context {
 
 impl Context {
     /// Building a context regardless of the planning and execution
-    pub fn build(cargo: &str, is_debug: bool) -> Result<Self, String> {
+    pub fn build(cargo: &str, is_debug_mode: bool, manifest_path:Option<&str>) -> Result<Self, String> {
         let mut cmd = cargo_metadata::MetadataCommand::new();
         // even if MetadataCommand::new() can find cargo using the env var
         // we don't want to run that logic twice
         cmd.cargo_path(cargo);
+
+
         // todo support --manifest-path
+        if let Some(manifest_path) = manifest_path {
+            let mut path= PathBuf::new();
+            path.push(manifest_path);
+            if !path.exists(){
+                return Err(format!("failed to use the manifest file, {} doesn't exists", &path.display()));
+            }
+        }
 
         let metadata = cmd.exec();
         if let Err(e) = &metadata {
@@ -173,7 +183,7 @@ impl Context {
 
         let mut target_dir = PathBuf::new();
         target_dir.push(metadata.target_directory.as_path());
-        target_dir.push(if is_debug { "debug" } else { "release" });
+        target_dir.push(if is_debug_mode { "debug" } else { "release" });
 
         let mut docker_packages = vec![];
         // for each workspace member, we're going to build a DockerPackage
