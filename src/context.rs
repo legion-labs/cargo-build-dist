@@ -12,14 +12,20 @@ use cargo_metadata::PackageId;
 use serde::Deserialize;
 use serde_json::from_str;
 
-use std::collections::HashSet;
+
+use std::collections::BTreeSet;
+
 use std::iter::FromIterator;
 
-#[derive(Hash, Eq, PartialEq, Debug, Clone)]
-pub struct Dependency {
-    pub name: String,
-    pub version: String,
-}
+use std::collections::hash_map::DefaultHasher;
+use std::hash::{Hash, Hasher};
+
+//#[derive(Hash, Eq, PartialEq, Debug, Clone)]
+// pub struct Dependency {
+//     pub name: String,
+//     pub version: String,
+// }
+
 
 #[derive(Debug, Clone, Deserialize)]
 struct DockerMetadata {
@@ -147,33 +153,43 @@ pub struct DockerPackage {
     pub toml_path: String,
     pub binaries: Vec<String>,
     pub docker_settings: DockerSettings,
-
-    pub dependencies: HashSet<Dependency>,
+    pub dependencies: BTreeSet<String>,
     pub target_dir: TargetDir,
 }
 
 pub struct Context {
     pub target_dir: PathBuf,
     pub docker_packages: Vec<DockerPackage>,
+    pub manifest_path: Option<PathBuf>
 }
 
 impl Context {
     /// Building a context regardless of the planning and execution
-    pub fn build(cargo: &str, is_debug_mode: bool, manifest_path:Option<&str>) -> Result<Self, String> {
+    pub fn build(
+        cargo: &str,
+        is_debug_mode: bool,
+        manifest_path: Option<&str>,
+    ) -> Result<Self, String> {
         let mut cmd = cargo_metadata::MetadataCommand::new();
         // even if MetadataCommand::new() can find cargo using the env var
         // we don't want to run that logic twice
         cmd.cargo_path(cargo);
 
-
         // todo support --manifest-path
+        let mut path = PathBuf::new();
         if let Some(manifest_path) = manifest_path {
-            let mut path= PathBuf::new();
             path.push(manifest_path);
-            if !path.exists(){
-                return Err(format!("failed to use the manifest file, {} doesn't exists", &path.display()));
+            if !path.exists() {
+                return Err(format!(
+                    "failed to use the manifest file, {} doesn't exists",
+                    &path.display()
+                ));
             }
+            // Question à clarifier avec Jalal:
+            // faudrait overwrider le metadata étant donné que le manifest-path est différent.
         }
+ 
+        // cmd.manifest_path(path)
 
         let metadata = cmd.exec();
         if let Err(e) = &metadata {
@@ -182,6 +198,7 @@ impl Context {
         let metadata = metadata.unwrap();
 
         let mut target_dir = PathBuf::new();
+
         target_dir.push(metadata.target_directory.as_path());
         target_dir.push(if is_debug_mode { "debug" } else { "release" });
 
@@ -230,7 +247,15 @@ impl Context {
             }
 
             let dependencies = get_transitive_dependencies(&metadata, package_id)?;
-            let dependencies = dependency_hash_to_set(dependencies);
+
+            for dependency in &dependencies{
+                println!("{}", dependency);
+            }
+            // let dependencies = dependency_hash_to_set(dependencies);
+            // let hash_depencencies = calculate_hash(&format!("{:?}", dependencies));
+            // println!("Hash of dependencies: {}", hash_depencencies);
+
+
 
             let mut docker_dir = PathBuf::new();
             docker_dir.push(target_dir.clone());
@@ -257,14 +282,49 @@ impl Context {
         Ok(Context {
             target_dir,
             docker_packages,
+            manifest_path: Some(path),
         })
     }
 }
 
+// fn get_transitive_dependencies(
+//     metadata: &cargo_metadata::Metadata,
+//     package_id: &PackageId,
+// ) -> Result<Vec<Dependency>, String> {
+//     if metadata.resolve.is_none() {
+//         return Err(format!(
+//             "resolve section not found in the workspace: {}",
+//             metadata.workspace_root
+//         ));
+//     }
+//     let resolve = metadata.resolve.as_ref().unwrap();
+
+//     // accumulating all the resolved dependencies
+//     let node = resolve.nodes.iter().find(|node| node.id == *package_id);
+//     if node.is_none() {
+//         return Err(format!(
+//             "failed to find the resolved dependencies for: {}",
+//             package_id
+//         ));
+//     }
+//     let node = node.unwrap();
+
+//     let mut deps = vec![];
+//     for dep_id in &node.dependencies {
+//         let dep = &metadata[dep_id];
+//         deps.push(Dependency {
+//             name: dep.name.clone(),
+//             version: dep.version.to_string(),
+//         });
+//         deps.append(&mut get_transitive_dependencies(metadata, dep_id)?);
+//     }
+
+//     Ok(deps)
+// }
 fn get_transitive_dependencies(
     metadata: &cargo_metadata::Metadata,
     package_id: &PackageId,
-) -> Result<Vec<Dependency>, String> {
+) -> Result<BTreeSet<String>, String> {
     if metadata.resolve.is_none() {
         return Err(format!(
             "resolve section not found in the workspace: {}",
@@ -283,19 +343,42 @@ fn get_transitive_dependencies(
     }
     let node = node.unwrap();
 
-    let mut deps = vec![];
+    //let mut deps = vec![];
+    let mut deps = BTreeSet::new();
+
     for dep_id in &node.dependencies {
         let dep = &metadata[dep_id];
-        deps.push(Dependency {
-            name: dep.name.clone(),
-            version: dep.version.to_string(),
-        });
+        // deps.push(Dependency {
+        //     name: dep.name.clone(),
+        //     version: dep.version.to_string(),
+        // });
+        deps.insert(dep.name.clone() + &dep.version.to_string());
         deps.append(&mut get_transitive_dependencies(metadata, dep_id)?);
     }
 
     Ok(deps)
 }
 
-fn dependency_hash_to_set(vec: Vec<Dependency>) -> HashSet<Dependency> {
-    HashSet::from_iter(vec)
+
+
+// fn dependency_hash_to_set(vec: Vec<Dependency>) -> HashSet<Dependency> {
+//     HashSet::from_iter(vec)
+// }
+
+fn calculate_hash<T: Hash>(t: &T) -> u64 {
+    let mut s = DefaultHasher::new();
+    t.hash(&mut s);
+    s.finish()
+}
+
+#[cfg(test)]
+mod test {
+    use crate::context::calculate_hash;
+
+    #[test]
+    fn test_calculate_hash() {
+
+        assert_eq!(14402189752926126668, calculate_hash(&"test"))
+
+    }
 }

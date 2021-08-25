@@ -83,19 +83,12 @@ impl Dockerfile {
             if let Some(ports) = &docker_setting.expose {
                 if !ports.is_empty() {
                     expose_command_str.push_str("EXPOSE ");
-                    let ports_str = ports.iter().join(",");
+                    let ports_str = ports.iter().join(" ");
                     expose_command_str.push_str(&ports_str);
                 }
             }
             context.insert("expose_cmd", &expose_command_str);
 
-            // Todo: validate intention ?
-            // To be discussed with others....
-            // Can not infer that that binary should be use as executable.
-            // if we have multiple binaries in our binaries vector, which one should be executed and on which order ?
-            // We can also implement the ENTRYPOINT command, but in this case, CMD command is not relevant anymore.
-            //let binaries = &docker_package.binaries;
-            // ENTRYPOINT vs CMD command
             context.insert("executable", "cargo-dockerize");
 
             if let Ok(content) = tera.render(tpl_name, &context) {
@@ -178,44 +171,47 @@ impl Action for CopyFiles {
     }
 }
 
-// struct CargoBuildCommand {
-//     manifest_path: Option<PathBuf>,
-// }
+struct CargoBuildCommand {
+    manifest_path: PathBuf,
+}
 
-// impl CargoBuildCommand {
-//     fn new(manifest_path: PathBuf) -> Result<Self, String> {
-//         if let Some(manifest_path) = 
-//         .exists() {
-//             return Err(format!(
-//                 "failed to find the cargo-manifest file {}",
-//                 &manifest_path.display()
-//             ));
-//         }
-//         Ok(Self {
-//             manifest_path
-//         })
-//     }
-// }
+impl CargoBuildCommand {
+    fn new(manifest_path: PathBuf) -> Result<Self, String> {
+        if !manifest_path.exists() {
+            return Err(format!(
+                "failed to find the cargo-manifest file {}",
+                &manifest_path.display()
+            ));
+        }
+        Ok(Self { manifest_path })
+    }
+}
 
-// impl Action for CargoBuildCommand {
-//     fn run(&self) -> Result<(), String> {
-//         if let Err(e) = Command::new("cargo")
-//              .arg("build")
-//         //     .arg("--manifest-path")
-//         //     .arg(&self.manifest_path)
-//              .output()
-//         {
-//              return Err(format!("fail to execute cargo build {}", e));
-//         }
-//         Ok(())
-//     }
-// }
+impl Action for CargoBuildCommand {
+    fn run(&self) -> Result<(), String> {
+        if let Err(e) = Command::new("cargo")
+            .arg("build")
+            .arg("--manifest-path")
+            .arg(&self.manifest_path)
+            .output()
+        {
+            return Err(format!("fail to execute cargo build {}", e));
+        }
+        Ok(())
+    }
+}
 
 pub fn plan_build(context: &super::Context) -> Result<Vec<Box<dyn Action>>, String> {
     // plan cargo build
     // plan files copies
     // plan Dockerfile creation
     let mut actions: Vec<Box<dyn Action>> = vec![];
+
+    if let Some(manifest_path) = &context.manifest_path {
+        actions.push(Box::new(CargoBuildCommand::new(
+            manifest_path.to_path_buf(),
+        )?));
+    }
     for docker_package in &context.docker_packages {
         actions.push(Box::new(Dockerfile::new(docker_package)?));
         actions.push(Box::new(CopyFiles::new(docker_package)?));

@@ -3,6 +3,7 @@ use std::{env, path::PathBuf};
 use clap::{App, AppSettings, Arg, SubCommand};
 
 fn main() -> Result<(), String> {
+
     let cargo = std::env::var("CARGO");
     if let Err(e) = &cargo {
         eprintln!("Failed to find the CARGO environment variable, it is usually set by cargo.");
@@ -46,13 +47,12 @@ fn main() -> Result<(), String> {
     // (as below), requesting just the name used, or both at the same time
     if let Some(matches) = matches.subcommand_matches("build") {
         println!("Execute build");
-
         if let Ok(actions) = cargo_dockerize::plan_build(&context) {
             cargo_dockerize::render(actions);
         }
     }
-    if let Some(mymatches) = matches.subcommand_matches("check") {
-        println!("Execute check {:?}", mymatches);
+    if let Some(matches) = matches.subcommand_matches("check") {
+        println!("Execute check on");
     }
 
     Ok(())
