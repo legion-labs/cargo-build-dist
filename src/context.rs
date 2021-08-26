@@ -2,7 +2,7 @@
 //! all relevant information for the rest of the commands, most notably
 //! the tree of workspace members containing a package.metadata.docker entry
 
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::{
     convert::{TryFrom, TryInto},
     vec,
@@ -10,22 +10,36 @@ use std::{
 
 use cargo_metadata::PackageId;
 use serde::Deserialize;
-use serde_json::from_str;
 
-
+use std::cmp::Ordering;
 use std::collections::BTreeSet;
 
-use std::iter::FromIterator;
+use sha2::{Digest, Sha256};
 
-use std::collections::hash_map::DefaultHasher;
-use std::hash::{Hash, Hasher};
+#[derive(Debug, Eq, Clone)]
+pub struct Dependency {
+    pub name: String,
+    pub version: String,
+}
+impl Ord for Dependency {
+    fn cmp(&self, other: &Self) -> Ordering {
+        let _self = self.name.to_string() + &self.version.to_string();
+        let _other = other.name.to_string() + &other.version.to_string();
+        _self.cmp(&_other)
+    }
+}
 
-//#[derive(Hash, Eq, PartialEq, Debug, Clone)]
-// pub struct Dependency {
-//     pub name: String,
-//     pub version: String,
-// }
+impl PartialOrd for Dependency {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
 
+impl PartialEq for Dependency {
+    fn eq(&self, other: &Self) -> bool {
+        self.name == other.name && self.version == other.version
+    }
+}
 
 #[derive(Debug, Clone, Deserialize)]
 struct DockerMetadata {
@@ -123,7 +137,6 @@ impl TryFrom<Metadata> for Option<DockerSettings> {
                 }
             }
 
-            // validate COPY commands
             let copy_dest_dir = &docker_metadata.copy_dest_dir;
             if copy_dest_dir.trim().is_empty() {
                 return Err(format!("Copy destination directory cannot be empty"));
@@ -146,21 +159,21 @@ impl TryFrom<Metadata> for Option<DockerSettings> {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct DockerPackage {
     pub name: String,
     pub version: String,
     pub toml_path: String,
     pub binaries: Vec<String>,
     pub docker_settings: DockerSettings,
-    pub dependencies: BTreeSet<String>,
+    pub dependencies: BTreeSet<Dependency>,
     pub target_dir: TargetDir,
 }
 
 pub struct Context {
     pub target_dir: PathBuf,
     pub docker_packages: Vec<DockerPackage>,
-    pub manifest_path: Option<PathBuf>
+    pub manifest_path: Option<PathBuf>,
 }
 
 impl Context {
@@ -185,11 +198,8 @@ impl Context {
                     &path.display()
                 ));
             }
-            // Question à clarifier avec Jalal:
-            // faudrait overwrider le metadata étant donné que le manifest-path est différent.
+            cmd.manifest_path(&path);
         }
- 
-        // cmd.manifest_path(path)
 
         let metadata = cmd.exec();
         if let Err(e) = &metadata {
@@ -247,15 +257,18 @@ impl Context {
             }
 
             let dependencies = get_transitive_dependencies(&metadata, package_id)?;
-
-            for dependency in &dependencies{
-                println!("{}", dependency);
-            }
-            // let dependencies = dependency_hash_to_set(dependencies);
-            // let hash_depencencies = calculate_hash(&format!("{:?}", dependencies));
-            // println!("Hash of dependencies: {}", hash_depencencies);
-
-
+            // let mut deps_hasher = Sha256::new();
+            // for dep in &dependencies {
+            //     deps_hasher.update(&dep.name);
+            //     deps_hasher.update(&dep.version);
+            // }
+            // let deps_hash_result = deps_hasher.finalize();
+            // if let Some(deps_hash) = &docker_settings.deps_hash {
+            //     let calculate_deps_hash = format!("{:x}", deps_hash_result);
+            //     if  calculate_deps_hash != deps_hash.to_string() {
+            //         return Err(format!("failed, deps_hash defined in the Cargo.toml file, is not equivalent to the calculated dependencies: {}", calculate_deps_hash));
+            //     }
+            // }
 
             let mut docker_dir = PathBuf::new();
             docker_dir.push(target_dir.clone());
@@ -275,10 +288,6 @@ impl Context {
                 },
             })
         }
-
-        //let docker_packages_str = format!("{:?}", docker_packages);
-        //println!("{}", docker_packages_str);
-
         Ok(Context {
             target_dir,
             docker_packages,
@@ -287,44 +296,10 @@ impl Context {
     }
 }
 
-// fn get_transitive_dependencies(
-//     metadata: &cargo_metadata::Metadata,
-//     package_id: &PackageId,
-// ) -> Result<Vec<Dependency>, String> {
-//     if metadata.resolve.is_none() {
-//         return Err(format!(
-//             "resolve section not found in the workspace: {}",
-//             metadata.workspace_root
-//         ));
-//     }
-//     let resolve = metadata.resolve.as_ref().unwrap();
-
-//     // accumulating all the resolved dependencies
-//     let node = resolve.nodes.iter().find(|node| node.id == *package_id);
-//     if node.is_none() {
-//         return Err(format!(
-//             "failed to find the resolved dependencies for: {}",
-//             package_id
-//         ));
-//     }
-//     let node = node.unwrap();
-
-//     let mut deps = vec![];
-//     for dep_id in &node.dependencies {
-//         let dep = &metadata[dep_id];
-//         deps.push(Dependency {
-//             name: dep.name.clone(),
-//             version: dep.version.to_string(),
-//         });
-//         deps.append(&mut get_transitive_dependencies(metadata, dep_id)?);
-//     }
-
-//     Ok(deps)
-// }
 fn get_transitive_dependencies(
     metadata: &cargo_metadata::Metadata,
     package_id: &PackageId,
-) -> Result<BTreeSet<String>, String> {
+) -> Result<BTreeSet<Dependency>, String> {
     if metadata.resolve.is_none() {
         return Err(format!(
             "resolve section not found in the workspace: {}",
@@ -348,37 +323,13 @@ fn get_transitive_dependencies(
 
     for dep_id in &node.dependencies {
         let dep = &metadata[dep_id];
-        // deps.push(Dependency {
-        //     name: dep.name.clone(),
-        //     version: dep.version.to_string(),
-        // });
-        deps.insert(dep.name.clone() + &dep.version.to_string());
+
+        deps.insert(Dependency {
+            name: dep.name.clone(),
+            version: dep.version.to_string(),
+        });
         deps.append(&mut get_transitive_dependencies(metadata, dep_id)?);
     }
 
     Ok(deps)
-}
-
-
-
-// fn dependency_hash_to_set(vec: Vec<Dependency>) -> HashSet<Dependency> {
-//     HashSet::from_iter(vec)
-// }
-
-fn calculate_hash<T: Hash>(t: &T) -> u64 {
-    let mut s = DefaultHasher::new();
-    t.hash(&mut s);
-    s.finish()
-}
-
-#[cfg(test)]
-mod test {
-    use crate::context::calculate_hash;
-
-    #[test]
-    fn test_calculate_hash() {
-
-        assert_eq!(14402189752926126668, calculate_hash(&"test"))
-
-    }
 }

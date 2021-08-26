@@ -5,6 +5,16 @@
 /// trying the use of template, easier than manipulating strings
 pub fn render(actions: Vec<Box<dyn crate::Action>>) {
     for action in actions {
-        action.run();
+        if let Err(e) = action.run(){
+            println!("failed in render {}", e);
+        }
+    }
+}
+
+pub fn dry_render(actions: Vec<Box<dyn crate::Action>>){
+    for action in actions{
+        if let Err(e) = action.dryrun(){
+            println!("Error in dry_render {}", e);
+        }
     }
 }

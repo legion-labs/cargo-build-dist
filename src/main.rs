@@ -1,4 +1,4 @@
-use std::{env, path::PathBuf};
+use std::{env};
 
 use clap::{App, AppSettings, Arg, SubCommand};
 
@@ -31,7 +31,9 @@ fn main() -> Result<(), String> {
                 .help("Path to Cargo.toml"),
         )
         .subcommand(SubCommand::with_name("build").about("build docker images"))
+        .subcommand(SubCommand::with_name("dry-run").about("dry-run of the build images"))
         .subcommand(SubCommand::with_name("check").about("check docker images"))
+        
         .get_matches_from(&args[1..]);
 
     if let Some(_path) = matches.value_of("manifest-path") {
@@ -45,15 +47,22 @@ fn main() -> Result<(), String> {
 
     // You can handle information about subcommands by requesting their matches by name
     // (as below), requesting just the name used, or both at the same time
-    if let Some(matches) = matches.subcommand_matches("build") {
+    if let Some(_matches) = matches.subcommand_matches("build") {
         println!("Execute build");
+
         if let Ok(actions) = cargo_dockerize::plan_build(&context) {
             cargo_dockerize::render(actions);
+        } else{
+            println!("plan_build failed");
         }
     }
-    if let Some(matches) = matches.subcommand_matches("check") {
-        println!("Execute check on");
+    if let Some(_matches) = matches.subcommand_matches("dry-run") {
+        println!("Execute dry-run");
+        if let Ok(actions) = cargo_dockerize::plan_build(&context) {
+            cargo_dockerize::dry_render(actions);
+        }
     }
+
 
     Ok(())
 }

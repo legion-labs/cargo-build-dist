@@ -4,7 +4,7 @@ FROM {{ base }}
 
 {{ copy_cmd }}
 
-WORKDIR {{ workdir_cmd }}
+{{ workdir_cmd }}
 
 {{ run_cmd }}
 
@@ -12,4 +12,4 @@ WORKDIR {{ workdir_cmd }}
 
 {{ expose_cmd }}
 
-CMD ["{{ executable }}"]
+CMD ["./{{ executable }}"]
