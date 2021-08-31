@@ -27,10 +27,13 @@ sha2 = "0.9"
 
 [package.metadata.docker]
 base = "ubuntu:20.04"
-deps_hash = "013b11ce25f8df6d4c701dddd4341a1dcfcec129f00d2d6ce561e56c68267ba8"
+deps_hash = "f99c5fa81d58ae8c0cfb03fc233ef8eddda71b84628b96880df1e51e15f71a56"
 env = [
     { name = "TZ", value = "Etc/UTC" },
     { name = "APP_USER", value = "appuser" },
     { name = "APP", value = "/usr/src/app" },
 ]
 copy_dest_dir = "/usr/src/app/"
+extra_copies = [
+    { source = "test-file", destination = "/usr/src/app/" }
+]

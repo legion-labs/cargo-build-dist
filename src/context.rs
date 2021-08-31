@@ -14,7 +14,6 @@ use serde::Deserialize;
 use std::cmp::Ordering;
 use std::collections::BTreeSet;
 
-use sha2::{Digest, Sha256};
 
 #[derive(Debug, Eq, Clone)]
 pub struct Dependency {
@@ -50,6 +49,7 @@ struct DockerMetadata {
     pub run: Option<Vec<String>>,
     pub expose: Option<Vec<i32>>,
     pub workdir: Option<String>,
+    pub extra_copies: Option<Vec<CopyCommand>>,
     pub entrypoint: Option<String>,
     pub user: Option<String>,
 }
@@ -86,6 +86,7 @@ pub struct DockerSettings {
     pub run: Option<Vec<String>>,
     pub expose: Option<Vec<i32>>,
     pub workdir: Option<String>,
+    pub extra_copies: Option<Vec<CopyCommand>>,
     pub entrypoint: Option<String>,
     pub user: Option<String>,
 }
@@ -142,6 +143,18 @@ impl TryFrom<Metadata> for Option<DockerSettings> {
                 return Err(format!("Copy destination directory cannot be empty"));
             }
 
+            if let Some(extra_copies) = &docker_metadata.extra_copies {
+                if extra_copies.is_empty(){
+                    return Err(format!("Extra copies should not be empty if declared"));
+                } else{
+                    for extra_copy  in extra_copies{
+                        if extra_copy.source.is_empty(){
+                            return Err(format!("Extra copy source cannot be empty"));
+                        }
+                    }
+                }
+            }
+
             Ok(Some(DockerSettings {
                 deps_hash: docker_metadata.deps_hash,
                 base: docker_metadata.base,
@@ -151,6 +164,7 @@ impl TryFrom<Metadata> for Option<DockerSettings> {
                 run: docker_metadata.run,
                 env: docker_metadata.env,
                 copy_dest_dir: docker_metadata.copy_dest_dir,
+                extra_copies: docker_metadata.extra_copies,
                 user: docker_metadata.user,
             }))
         } else {
@@ -257,18 +271,6 @@ impl Context {
             }
 
             let dependencies = get_transitive_dependencies(&metadata, package_id)?;
-            // let mut deps_hasher = Sha256::new();
-            // for dep in &dependencies {
-            //     deps_hasher.update(&dep.name);
-            //     deps_hasher.update(&dep.version);
-            // }
-            // let deps_hash_result = deps_hasher.finalize();
-            // if let Some(deps_hash) = &docker_settings.deps_hash {
-            //     let calculate_deps_hash = format!("{:x}", deps_hash_result);
-            //     if  calculate_deps_hash != deps_hash.to_string() {
-            //         return Err(format!("failed, deps_hash defined in the Cargo.toml file, is not equivalent to the calculated dependencies: {}", calculate_deps_hash));
-            //     }
-            // }
 
             let mut docker_dir = PathBuf::new();
             docker_dir.push(target_dir.clone());

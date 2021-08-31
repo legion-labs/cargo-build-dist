@@ -11,10 +11,11 @@ pub fn render(actions: Vec<Box<dyn crate::Action>>) {
     }
 }
 
-pub fn dry_render(actions: Vec<Box<dyn crate::Action>>){
+pub fn dryrun_render(actions: Vec<Box<dyn crate::Action>>){
     for action in actions{
         if let Err(e) = action.dryrun(){
             println!("Error in dry_render {}", e);
         }
     }
 }
+

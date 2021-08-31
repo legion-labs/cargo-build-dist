@@ -6,10 +6,6 @@ FROM {{ base }}
 
 {{ workdir_cmd }}
 
-{{ run_cmd }}
-
-{{ user_cmd }}
-
 {{ expose_cmd }}
 
 CMD ["./{{ executable }}"]

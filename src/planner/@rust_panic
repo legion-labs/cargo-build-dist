@@ -1,22 +1,258 @@
-; id = {0x000079b9}, range = [0x000000000083dd70-0x000000000083dde0), name="rust_panic"
-; Source location: /rustc/53cb7b09b00cbea8754ffb78e7e3cb521cb8af4b/library/std/src/panicking.rs:637
-555555D91D70: 48 83 EC 58                subq   $0x58, %rsp
-555555D91D74: 48 89 7C 24 08             movq   %rdi, 0x8(%rsp)
-555555D91D79: 48 89 74 24 10             movq   %rsi, 0x10(%rsp)
-555555D91D7E: 48 8D 7C 24 08             leaq   0x8(%rsp), %rdi
-555555D91D83: FF 15 BF 0C 40 00          callq  *0x400cbf(%rip)
-555555D91D89: 89 44 24 04                movl   %eax, 0x4(%rsp)
-555555D91D8D: 48 8D 44 24 04             leaq   0x4(%rsp), %rax
-555555D91D92: 48 89 44 24 18             movq   %rax, 0x18(%rsp)
-555555D91D97: 48 8D 05 92 7E 02 00       leaq   0x27e92(%rip), %rax  ; fmt at num.rs:279
-555555D91D9E: 48 89 44 24 20             movq   %rax, 0x20(%rsp)
-555555D91DA3: 48 8D 05 9E 2F 3E 00       leaq   0x3e2f9e(%rip), %rax
-555555D91DAA: 48 89 44 24 28             movq   %rax, 0x28(%rsp)
-555555D91DAF: 48 C7 44 24 30 01 00 00 >  movq   $0x1, 0x30(%rsp)
-555555D91DB8: 48 C7 44 24 38 00 00 00 >  movq   $0x0, 0x38(%rsp)
-555555D91DC1: 48 8D 44 24 18             leaq   0x18(%rsp), %rax
-555555D91DC6: 48 89 44 24 48             movq   %rax, 0x48(%rsp)
-555555D91DCB: 48 C7 44 24 50 01 00 00 >  movq   $0x1, 0x50(%rsp)
-555555D91DD4: 48 8D 7C 24 28             leaq   0x28(%rsp), %rdi
-555555D91DD9: E8 B2 EC FF FF             callq  0x555555d90a90  ; abort at util.rs:17
-555555D91DDE: 0F 0B                      ud2    
+; id = {0x000068c9}, range = [0x0000000000868b90-0x0000000000869020), name="std::rt::lang_start_internal::h4461fc58637f04f8", mangled="_ZN3std2rt19lang_start_internal17h4461fc58637f04f8E"
+; Source location: /rustc/53cb7b09b00cbea8754ffb78e7e3cb521cb8af4b/library/std/src/rt.rs:23
+555555DBCB90: 55                         pushq  %rbp
+555555DBCB91: 41 57                      pushq  %r15
+555555DBCB93: 41 56                      pushq  %r14
+555555DBCB95: 41 55                      pushq  %r13
+555555DBCB97: 41 54                      pushq  %r12
+555555DBCB99: 53                         pushq  %rbx
+555555DBCB9A: 48 81 EC E8 00 00 00       subq   $0xe8, %rsp
+555555DBCBA1: 49 89 F6                   movq   %rsi, %r14
+555555DBCBA4: 49 89 FF                   movq   %rdi, %r15
+555555DBCBA7: 48 C7 44 24 20 00 00 00 >  movq   $0x0, 0x20(%rsp)
+555555DBCBB0: 0F 28 05 D9 B9 0F 00       movaps 0xfb9d9(%rip), %xmm0
+555555DBCBB7: 0F 11 44 24 28             movups %xmm0, 0x28(%rsp)
+555555DBCBBC: 4C 8D 64 24 20             leaq   0x20(%rsp), %r12
+555555DBCBC1: 48 8B 1D 78 61 3F 00       movq   0x3f6178(%rip), %rbx
+555555DBCBC8: 4C 8B 2D 61 B1 40 00       movq   0x40b161(%rip), %r13
+555555DBCBCF: 90                         nop    
+555555DBCBD0: BE 03 00 00 00             movl   $0x3, %esi
+555555DBCBD5: 4C 89 E7                   movq   %r12, %rdi
+555555DBCBD8: 31 D2                      xorl   %edx, %edx
+555555DBCBDA: FF D3                      callq  *%rbx
+555555DBCBDC: 83 F8 FF                   cmpl   $-0x1, %eax
+555555DBCBDF: 75 10                      jne    0x555555dbcbf1  ; <+97> [inlined] std::sys::unix::init::sanitize_standard_fds + 74 at mod.rs:94:21
+555555DBCBE1: 41 FF D5                   callq  *%r13
+555555DBCBE4: 83 38 04                   cmpl   $0x4, (%rax)
+555555DBCBE7: 74 E7                      je     0x555555dbcbd0  ; <+64> [inlined] std::sys::unix::init::sanitize_standard_fds + 41 at mod.rs:87:23
+555555DBCBE9: FF 15 11 25 40 00          callq  *0x402511(%rip)
+555555DBCBEF: 0F 0B                      ud2    
+555555DBCBF1: F6 44 24 26 20             testb  $0x20, 0x26(%rsp)
+555555DBCBF6: 74 1B                      je     0x555555dbcc13  ; <+131> [inlined] std::sys::unix::init::sanitize_standard_fds + 108 at mod.rs:94:21
+555555DBCBF8: 48 8D 3D FC DF 0F 00       leaq   0xfdffc(%rip), %rdi
+555555DBCBFF: BE 02 00 00 00             movl   $0x2, %esi
+555555DBCC04: 31 D2                      xorl   %edx, %edx
+555555DBCC06: 31 C0                      xorl   %eax, %eax
+555555DBCC08: FF 15 32 9A 3F 00          callq  *0x3f9a32(%rip)
+555555DBCC0E: 83 F8 FF                   cmpl   $-0x1, %eax
+555555DBCC11: 74 D6                      je     0x555555dbcbe9  ; <+89> [inlined] std::sys::unix::init::sanitize_standard_fds + 66 at mod.rs
+555555DBCC13: F6 44 24 2E 20             testb  $0x20, 0x2e(%rsp)
+555555DBCC18: 74 1B                      je     0x555555dbcc35  ; <+165> [inlined] std::sys::unix::init::sanitize_standard_fds + 142 at mod.rs:94:21
+555555DBCC1A: 48 8D 3D DA DF 0F 00       leaq   0xfdfda(%rip), %rdi
+555555DBCC21: BE 02 00 00 00             movl   $0x2, %esi
+555555DBCC26: 31 D2                      xorl   %edx, %edx
+555555DBCC28: 31 C0                      xorl   %eax, %eax
+555555DBCC2A: FF 15 10 9A 3F 00          callq  *0x3f9a10(%rip)
+555555DBCC30: 83 F8 FF                   cmpl   $-0x1, %eax
+555555DBCC33: 74 B4                      je     0x555555dbcbe9  ; <+89> [inlined] std::sys::unix::init::sanitize_standard_fds + 66 at mod.rs
+555555DBCC35: F6 44 24 36 20             testb  $0x20, 0x36(%rsp)
+555555DBCC3A: 74 1B                      je     0x555555dbcc57  ; <+199> [inlined] std::sys::unix::init::reset_sigpipe at mod.rs:120:17
+555555DBCC3C: 48 8D 3D B8 DF 0F 00       leaq   0xfdfb8(%rip), %rdi
+555555DBCC43: BE 02 00 00 00             movl   $0x2, %esi
+555555DBCC48: 31 D2                      xorl   %edx, %edx
+555555DBCC4A: 31 C0                      xorl   %eax, %eax
+555555DBCC4C: FF 15 EE 99 3F 00          callq  *0x3f99ee(%rip)
+555555DBCC52: 83 F8 FF                   cmpl   $-0x1, %eax
+555555DBCC55: 74 92                      je     0x555555dbcbe9  ; <+89> [inlined] std::sys::unix::init::sanitize_standard_fds + 66 at mod.rs
+555555DBCC57: BE 01 00 00 00             movl   $0x1, %esi
+555555DBCC5C: BF 0D 00 00 00             movl   $0xd, %edi
+555555DBCC61: FF 15 F9 76 3F 00          callq  *0x3f76f9(%rip)
+555555DBCC67: 48 83 F8 FF                cmpq   $-0x1, %rax
+555555DBCC6B: 0F 84 BE 02 00 00          je     0x555555dbcf2f  ; <+927> [inlined] std::sys::unix::init::reset_sigpipe at mod.rs:120:9
+555555DBCC71: 0F 57 C0                   xorps  %xmm0, %xmm0
+555555DBCC74: 0F 29 84 24 A0 00 00 00    movaps %xmm0, 0xa0(%rsp)
+555555DBCC7C: 0F 29 84 24 90 00 00 00    movaps %xmm0, 0x90(%rsp)
+555555DBCC84: 0F 29 84 24 80 00 00 00    movaps %xmm0, 0x80(%rsp)
+555555DBCC8C: 0F 29 44 24 70             movaps %xmm0, 0x70(%rsp)
+555555DBCC91: 0F 29 44 24 60             movaps %xmm0, 0x60(%rsp)
+555555DBCC96: 0F 29 44 24 50             movaps %xmm0, 0x50(%rsp)
+555555DBCC9B: 0F 29 44 24 40             movaps %xmm0, 0x40(%rsp)
+555555DBCCA0: 0F 29 44 24 30             movaps %xmm0, 0x30(%rsp)
+555555DBCCA5: 0F 29 44 24 20             movaps %xmm0, 0x20(%rsp)
+555555DBCCAA: 48 C7 84 24 B0 00 00 00 >  movq   $0x0, 0xb0(%rsp)
+555555DBCCB6: 48 8D 54 24 20             leaq   0x20(%rsp), %rdx
+555555DBCCBB: BF 0B 00 00 00             movl   $0xb, %edi
+555555DBCCC0: 31 F6                      xorl   %esi, %esi
+555555DBCCC2: FF 15 40 3F 40 00          callq  *0x403f40(%rip)
+555555DBCCC8: 48 83 7C 24 20 00          cmpq   $0x0, 0x20(%rsp)
+555555DBCCCE: 75 30                      jne    0x555555dbcd00  ; <+368> [inlined] std::sys::unix::stack_overflow::imp::init + 143 at atomic.rs
+555555DBCCD0: C7 84 24 A8 00 00 00 04 >  movl   $0x8000004, 0xa8(%rsp)  ; imm = 0x8000004 
+555555DBCCDB: 48 8D 05 0E 45 00 00       leaq   0x450e(%rip), %rax  ; signal_handler at stack_overflow.rs:93
+555555DBCCE2: 48 89 44 24 20             movq   %rax, 0x20(%rsp)
+555555DBCCE7: 48 8D 74 24 20             leaq   0x20(%rsp), %rsi
+555555DBCCEC: BF 0B 00 00 00             movl   $0xb, %edi
+555555DBCCF1: 31 D2                      xorl   %edx, %edx
+555555DBCCF3: FF 15 0F 3F 40 00          callq  *0x403f0f(%rip)
+555555DBCCF9: C6 05 83 27 41 00 01       movb   $0x1, 0x412783(%rip)
+555555DBCD00: 48 8D 54 24 20             leaq   0x20(%rsp), %rdx
+555555DBCD05: BF 07 00 00 00             movl   $0x7, %edi
+555555DBCD0A: 31 F6                      xorl   %esi, %esi
+555555DBCD0C: FF 15 F6 3E 40 00          callq  *0x403ef6(%rip)
+555555DBCD12: 48 83 7C 24 20 00          cmpq   $0x0, 0x20(%rsp)
+555555DBCD18: 75 30                      jne    0x555555dbcd4a  ; <+442> [inlined] std::sys::unix::stack_overflow::imp::init + 217 at stack_overflow.rs:134:23
+555555DBCD1A: C7 84 24 A8 00 00 00 04 >  movl   $0x8000004, 0xa8(%rsp)  ; imm = 0x8000004 
+555555DBCD25: 48 8D 05 C4 44 00 00       leaq   0x44c4(%rip), %rax  ; signal_handler at stack_overflow.rs:93
+555555DBCD2C: 48 89 44 24 20             movq   %rax, 0x20(%rsp)
+555555DBCD31: 48 8D 74 24 20             leaq   0x20(%rsp), %rsi
+555555DBCD36: BF 07 00 00 00             movl   $0x7, %edi
+555555DBCD3B: 31 D2                      xorl   %edx, %edx
+555555DBCD3D: FF 15 C5 3E 40 00          callq  *0x403ec5(%rip)
+555555DBCD43: C6 05 39 27 41 00 01       movb   $0x1, 0x412739(%rip)
+555555DBCD4A: E8 21 47 00 00             callq  0x555555dc1470  ; make_handler [inlined] core::sync::atomic::atomic_load at stack_overflow.rs:180
+555555DBCD4F: 48 89 05 EA 26 41 00       movq   %rax, 0x4126ea(%rip)
+555555DBCD56: BF 1E 00 00 00             movl   $0x1e, %edi
+555555DBCD5B: FF 15 A7 C5 3F 00          callq  *0x3fc5a7(%rip)
+555555DBCD61: 48 89 05 E0 26 41 00       movq   %rax, 0x4126e0(%rip)
+555555DBCD68: 48 8B 1D D9 26 41 00       movq   0x4126d9(%rip), %rbx
+555555DBCD6F: 48 85 DB                   testq  %rbx, %rbx
+555555DBCD72: 0F 84 D2 01 00 00          je     0x555555dbcf4a  ; <+954> [inlined] std::sys::unix::thread::guard::get_stack_start_aligned at thread.rs:305:9
+555555DBCD78: 49 89 C4                   movq   %rax, %r12
+555555DBCD7B: 0F 57 C0                   xorps  %xmm0, %xmm0
+555555DBCD7E: 0F 29 44 24 40             movaps %xmm0, 0x40(%rsp)
+555555DBCD83: 0F 29 44 24 30             movaps %xmm0, 0x30(%rsp)
+555555DBCD88: 0F 29 44 24 20             movaps %xmm0, 0x20(%rsp)
+555555DBCD8D: 48 C7 44 24 50 00 00 00 >  movq   $0x0, 0x50(%rsp)
+555555DBCD96: FF 15 84 0B 40 00          callq  *0x400b84(%rip)
+555555DBCD9C: 48 8D 74 24 20             leaq   0x20(%rsp), %rsi
+555555DBCDA1: 48 89 C7                   movq   %rax, %rdi
+555555DBCDA4: FF 15 F6 D2 3F 00          callq  *0x3fd2f6(%rip)
+555555DBCDAA: 85 C0                      testl  %eax, %eax
+555555DBCDAC: 74 08                      je     0x555555dbcdb6  ; <+550> [inlined] std::sys::unix::thread::guard::get_stack_start + 59 at thread.rs:291:33
+555555DBCDAE: 45 31 E4                   xorl   %r12d, %r12d
+555555DBCDB1: E9 85 00 00 00             jmp    0x555555dbce3b  ; <+683> [inlined] alloc::alloc::alloc at alloc.rs:86:14
+555555DBCDB6: 48 C7 44 24 18 00 00 00 >  movq   $0x0, 0x18(%rsp)
+555555DBCDBF: 48 C7 44 24 08 00 00 00 >  movq   $0x0, 0x8(%rsp)
+555555DBCDC8: 48 8D 7C 24 20             leaq   0x20(%rsp), %rdi
+555555DBCDCD: 48 8D 74 24 18             leaq   0x18(%rsp), %rsi
+555555DBCDD2: 48 8D 54 24 08             leaq   0x8(%rsp), %rdx
+555555DBCDD7: FF 15 7B 2C 40 00          callq  *0x402c7b(%rip)
+555555DBCDDD: 89 44 24 14                movl   %eax, 0x14(%rsp)
+555555DBCDE1: 85 C0                      testl  %eax, %eax
+555555DBCDE3: 0F 85 8E 01 00 00          jne    0x555555dbcf77  ; <+999> [inlined] std::sys::unix::thread::guard::get_stack_start at thread.rs:293:13
+555555DBCDE9: 4C 8B 6C 24 18             movq   0x18(%rsp), %r13
+555555DBCDEE: 48 8D 7C 24 20             leaq   0x20(%rsp), %rdi
+555555DBCDF3: FF 15 87 0E 40 00          callq  *0x400e87(%rip)
+555555DBCDF9: 89 44 24 08                movl   %eax, 0x8(%rsp)
+555555DBCDFD: 85 C0                      testl  %eax, %eax
+555555DBCDFF: 0F 85 93 01 00 00          jne    0x555555dbcf98  ; <+1032> [inlined] std::sys::unix::thread::guard::get_stack_start + 33 at thread.rs:297:13
+555555DBCE05: 4C 89 E8                   movq   %r13, %rax
+555555DBCE08: 48 09 D8                   orq    %rbx, %rax
+555555DBCE0B: 48 C1 E8 20                shrq   $0x20, %rax
+555555DBCE0F: 74 0A                      je     0x555555dbce1b  ; <+651> [inlined] std::sys::unix::thread::guard::get_stack_start_aligned + 160 at thread.rs:314:25
+555555DBCE11: 4C 89 E8                   movq   %r13, %rax
+555555DBCE14: 31 D2                      xorl   %edx, %edx
+555555DBCE16: 48 F7 F3                   divq   %rbx
+555555DBCE19: EB 07                      jmp    0x555555dbce22  ; <+658> [inlined] std::sys::unix::thread::guard::get_stack_start_aligned + 167 at thread.rs:315:14
+555555DBCE1B: 44 89 E8                   movl   %r13d, %eax
+555555DBCE1E: 31 D2                      xorl   %edx, %edx
+555555DBCE20: F7 F3                      divl   %ebx
+555555DBCE22: 4C 01 EB                   addq   %r13, %rbx
+555555DBCE25: 48 29 D3                   subq   %rdx, %rbx
+555555DBCE28: 48 85 D2                   testq  %rdx, %rdx
+555555DBCE2B: 49 0F 44 DD                cmoveq %r13, %rbx
+555555DBCE2F: 49 89 DD                   movq   %rbx, %r13
+555555DBCE32: 4D 29 E5                   subq   %r12, %r13
+555555DBCE35: 41 BC 01 00 00 00          movl   $0x1, %r12d
+555555DBCE3B: BF 04 00 00 00             movl   $0x4, %edi
+555555DBCE40: BE 01 00 00 00             movl   $0x1, %esi
+555555DBCE45: FF 15 AD 6E 40 00          callq  *0x406ead(%rip)
+555555DBCE4B: 48 85 C0                   testq  %rax, %rax
+555555DBCE4E: 0F 84 11 01 00 00          je     0x555555dbcf65  ; <+981> [inlined] alloc::raw_vec::RawVec$LT$T$C$A$GT$::allocate_in at raw_vec.rs:200:27
+555555DBCE54: C7 00 6D 61 69 6E          movl   $0x6e69616d, (%rax)  ; imm = 0x6E69616D 
+555555DBCE5A: 48 89 44 24 20             movq   %rax, 0x20(%rsp)
+555555DBCE5F: 0F 28 05 5A B6 0F 00       movaps 0xfb65a(%rip), %xmm0
+555555DBCE66: 0F 11 44 24 28             movups %xmm0, 0x28(%rsp)
+555555DBCE6B: 48 8D 7C 24 20             leaq   0x20(%rsp), %rdi
+555555DBCE70: FF 15 02 89 40 00          callq  *0x408902(%rip)
+555555DBCE76: 4C 89 64 24 20             movq   %r12, 0x20(%rsp)
+555555DBCE7B: 4C 89 6C 24 28             movq   %r13, 0x28(%rsp)
+555555DBCE80: 48 89 5C 24 30             movq   %rbx, 0x30(%rsp)
+555555DBCE85: 48 8D 7C 24 20             leaq   0x20(%rsp), %rdi
+555555DBCE8A: 48 89 C6                   movq   %rax, %rsi
+555555DBCE8D: FF 15 6D 0E 40 00          callq  *0x400e6d(%rip)
+555555DBCE93: 4C 89 FF                   movq   %r15, %rdi
+555555DBCE96: 41 FF 56 18                callq  *0x18(%r14)
+555555DBCE9A: 89 44 24 24                movl   %eax, 0x24(%rsp)
+555555DBCE9E: C7 44 24 20 00 00 00 00    movl   $0x0, 0x20(%rsp)
+555555DBCEA6: 48 8B 05 A3 24 41 00       movq   0x4124a3(%rip), %rax
+555555DBCEAD: 48 83 F8 03                cmpq   $0x3, %rax
+555555DBCEB1: 74 30                      je     0x555555dbcee3  ; <+851> [inlined] core::result::Result$LT$T$C$E$GT$::unwrap_or at result.rs:798:13
+555555DBCEB3: C6 44 24 08 01             movb   $0x1, 0x8(%rsp)
+555555DBCEB8: 48 8D 44 24 08             leaq   0x8(%rsp), %rax
+555555DBCEBD: 48 89 84 24 B8 00 00 00    movq   %rax, 0xb8(%rsp)
+555555DBCEC5: 48 8D 3D 84 24 41 00       leaq   0x412484(%rip), %rdi
+555555DBCECC: 48 8D 0D ED BA 3E 00       leaq   0x3ebaed(%rip), %rcx
+555555DBCED3: 48 8D 94 24 B8 00 00 00    leaq   0xb8(%rsp), %rdx
+555555DBCEDB: 31 F6                      xorl   %esi, %esi
+555555DBCEDD: FF 15 C5 18 40 00          callq  *0x4018c5(%rip)
+555555DBCEE3: 83 7C 24 20 01             cmpl   $0x1, 0x20(%rsp)
+555555DBCEE8: 75 2C                      jne    0x555555dbcf16  ; <+902> at alloc.rs
+555555DBCEEA: 4C 8B 7C 24 28             movq   0x28(%rsp), %r15
+555555DBCEEF: 48 8B 5C 24 30             movq   0x30(%rsp), %rbx
+555555DBCEF4: 4C 89 FF                   movq   %r15, %rdi
+555555DBCEF7: FF 13                      callq  *(%rbx)
+555555DBCEF9: 48 8B 73 08                movq   0x8(%rbx), %rsi
+555555DBCEFD: BD 65 00 00 00             movl   $0x65, %ebp
+555555DBCF02: 48 85 F6                   testq  %rsi, %rsi
+555555DBCF05: 74 13                      je     0x555555dbcf1a  ; <+906> at rt.rs:38:5
+555555DBCF07: 48 8B 53 10                movq   0x10(%rbx), %rdx
+555555DBCF0B: 4C 89 FF                   movq   %r15, %rdi
+555555DBCF0E: FF 15 AC AC 40 00          callq  *0x40acac(%rip)
+555555DBCF14: EB 04                      jmp    0x555555dbcf1a  ; <+906> at rt.rs:38:5
+555555DBCF16: 8B 6C 24 24                movl   0x24(%rsp), %ebp
+555555DBCF1A: 48 63 C5                   movslq %ebp, %rax
+555555DBCF1D: 48 81 C4 E8 00 00 00       addq   $0xe8, %rsp
+555555DBCF24: 5B                         popq   %rbx
+555555DBCF25: 41 5C                      popq   %r12
+555555DBCF27: 41 5D                      popq   %r13
+555555DBCF29: 41 5E                      popq   %r14
+555555DBCF2B: 41 5F                      popq   %r15
+555555DBCF2D: 5D                         popq   %rbp
+555555DBCF2E: C3                         retq   
+555555DBCF2F: 48 8D 3D 7A DE 0F 00       leaq   0xfde7a(%rip), %rdi
+555555DBCF36: 48 8D 15 33 C4 3E 00       leaq   0x3ec433(%rip), %rdx
+555555DBCF3D: BE 47 00 00 00             movl   $0x47, %esi
+555555DBCF42: FF 15 20 79 40 00          callq  *0x407920(%rip)
+555555DBCF48: 0F 0B                      ud2    
+555555DBCF4A: 48 8D 3D 70 C9 0F 00       leaq   0xfc970(%rip), %rdi
+555555DBCF51: 48 8D 15 D0 C3 3E 00       leaq   0x3ec3d0(%rip), %rdx
+555555DBCF58: BE 20 00 00 00             movl   $0x20, %esi
+555555DBCF5D: FF 15 05 79 40 00          callq  *0x407905(%rip)
+555555DBCF63: 0F 0B                      ud2    
+555555DBCF65: BF 04 00 00 00             movl   $0x4, %edi
+555555DBCF6A: BE 01 00 00 00             movl   $0x1, %esi
+555555DBCF6F: FF 15 D3 8E 40 00          callq  *0x408ed3(%rip)
+555555DBCF75: 0F 0B                      ud2    
+555555DBCF77: 48 C7 84 24 B8 00 00 00 >  movq   $0x0, 0xb8(%rsp)
+555555DBCF83: 48 8D 15 9A 10 0A 00       leaq   0xa109a(%rip), %rdx
+555555DBCF8A: 4C 8D 05 67 C3 3E 00       leaq   0x3ec367(%rip), %r8
+555555DBCF91: 48 8D 74 24 14             leaq   0x14(%rsp), %rsi
+555555DBCF96: EB 1F                      jmp    0x555555dbcfb7  ; <+1063> [inlined] std::sys::unix::thread::guard::get_stack_start + 64 at thread.rs
+555555DBCF98: 48 C7 84 24 B8 00 00 00 >  movq   $0x0, 0xb8(%rsp)
+555555DBCFA4: 48 8D 15 79 10 0A 00       leaq   0xa1079(%rip), %rdx
+555555DBCFAB: 4C 8D 05 5E C3 3E 00       leaq   0x3ec35e(%rip), %r8
+555555DBCFB2: 48 8D 74 24 08             leaq   0x8(%rsp), %rsi
+555555DBCFB7: 48 8D 8C 24 B8 00 00 00    leaq   0xb8(%rsp), %rcx
+555555DBCFBF: 31 FF                      xorl   %edi, %edi
+555555DBCFC1: E8 3A B9 94 FF             callq  0x555555708900  ; assert_failed<i32,i32> at panicking.rs:106
+555555DBCFC6: 0F 0B                      ud2    
+555555DBCFC8: 49 89 C6                   movq   %rax, %r14
+555555DBCFCB: 4C 89 FF                   movq   %r15, %rdi
+555555DBCFCE: 48 89 DE                   movq   %rbx, %rsi
+555555DBCFD1: E8 1A E3 FE FF             callq  0x555555dab2f0  ; box_free<FnOnce<()>,alloc::alloc::Global> at alloc.rs:329
+555555DBCFD6: EB 0D                      jmp    0x555555dbcfe5  ; <+1109> at rt.rs
+555555DBCFD8: 49 89 C6                   movq   %rax, %r14
+555555DBCFDB: 48 8D 7C 24 20             leaq   0x20(%rsp), %rdi
+555555DBCFE0: E8 3B 89 FE FF             callq  0x555555da5920  ; drop_in_place<core::result::Result<i32, alloc::boxed::Box<Any, alloc::alloc::Global>>> at mod.rs:192
+555555DBCFE5: 4C 89 F7                   movq   %r14, %rdi
+555555DBCFE8: E8 53 B0 94 FF             callq  0x555555708040  ; symbol stub for: _Unwind_Resume
+555555DBCFED: 0F 0B                      ud2    
+555555DBCFEF: 48 89 C7                   movq   %rax, %rdi
+555555DBCFF2: FF 15 F0 FD 3F 00          callq  *0x3ffdf0(%rip)
+555555DBCFF8: 48 89 44 24 28             movq   %rax, 0x28(%rsp)
+555555DBCFFD: 48 89 54 24 30             movq   %rdx, 0x30(%rsp)
+555555DBD002: C7 44 24 20 01 00 00 00    movl   $0x1, 0x20(%rsp)
+555555DBD00A: 48 8B 05 3F 23 41 00       movq   0x41233f(%rip), %rax
+555555DBD011: 48 83 F8 03                cmpq   $0x3, %rax
+555555DBD015: 0F 85 98 FE FF FF          jne    0x555555dbceb3  ; <+803> [inlined] std::sync::once::Once::call_once + 13 at once.rs:260:21
+555555DBD01B: E9 C3 FE FF FF             jmp    0x555555dbcee3  ; <+851> [inlined] core::result::Result$LT$T$C$E$GT$::unwrap_or at result.rs:798:13
