@@ -81,7 +81,7 @@ impl Dockerfile {
                 docker_file_path.push(DOCKER_TEMPLATE_NAME.to_string());
                 Ok(Self {
                     content,
-                    path: docker_file_path,
+                    path: docker_file_path
                 })
             } else {
                 Err("Failed to render template file".to_string())

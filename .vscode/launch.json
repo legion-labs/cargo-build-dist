@@ -21,7 +21,8 @@
             },
             "args": [
                 "-d",
-                "build"
+                "push"
+                "--auto-repository"
 
             ],
             "cwd": "${workspaceFolder}",
