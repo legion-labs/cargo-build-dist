@@ -7,13 +7,11 @@ use std::{
     convert::{TryFrom, TryInto},
     vec,
 };
-
 use cargo_metadata::PackageId;
 use serde::Deserialize;
 
 use std::cmp::Ordering;
 use std::collections::BTreeSet;
-
 
 #[derive(Debug, Eq, Clone)]
 pub struct Dependency {
@@ -144,11 +142,11 @@ impl TryFrom<Metadata> for Option<DockerSettings> {
             }
 
             if let Some(extra_copies) = &docker_metadata.extra_copies {
-                if extra_copies.is_empty(){
+                if extra_copies.is_empty() {
                     return Err(format!("Extra copies should not be empty if declared"));
-                } else{
-                    for extra_copy  in extra_copies{
-                        if extra_copy.source.is_empty(){
+                } else {
+                    for extra_copy in extra_copies {
+                        if extra_copy.source.is_empty() {
                             return Err(format!("Extra copy source cannot be empty"));
                         }
                     }

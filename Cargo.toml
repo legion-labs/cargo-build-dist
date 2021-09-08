@@ -31,7 +31,7 @@ base64 = {version = "0.13.0"}
 
 [package.metadata.docker]
 base = "ubuntu:20.04"
-deps_hash = "f99c5fa81d58ae8c0cfb03fc233ef8eddda71b84628b96880df1e51e15f71a56"
+deps_hash = "2576e945846146054ee74bf2d5e8563f85f0af2f2330eb02de5bab2654a93b8f"
 env = [
     { name = "TZ", value = "Etc/UTC" },
     { name = "APP_USER", value = "appuser" },

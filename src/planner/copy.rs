@@ -66,9 +66,12 @@ impl Action for CopyFiles {
     }
 
     fn dryrun(&self) -> Result<(), String> {
+        println!("--------------");
+        println!("| Copy Files |");
+        println!("--------------");
         for copy_file in &self.copy_files {
             println!(
-                "Copy file\n from {}\n to {}",
+                "Copy file Source:{} Destination:{}",
                 &copy_file.source.display(),
                 &copy_file.destination.display()
             );

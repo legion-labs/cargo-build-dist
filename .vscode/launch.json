@@ -21,11 +21,7 @@
             },
             "args": [
                 "-d",
-                "push"
-                "--auto-repository",
-                "--registry-type",
-                "aws"
-
+                "dry-run",
             ],
             "cwd": "${workspaceFolder}",
             "env": {

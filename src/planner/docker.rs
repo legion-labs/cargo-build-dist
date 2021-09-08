@@ -37,10 +37,14 @@ impl Dockerfile {
             }
 
             // COPY command(s) for extra copy
-            let mut copy_cmd = String::from(build_copy_command_str(&docker_package.binaries, &docker_setting.copy_dest_dir));
-            copy_cmd.push_str(&build_extra_copies_command_str(&docker_setting.extra_copies));
+            let mut copy_cmd = String::from(build_copy_command_str(
+                &docker_package.binaries,
+                &docker_setting.copy_dest_dir,
+            ));
+            copy_cmd.push_str(&build_extra_copies_command_str(
+                &docker_setting.extra_copies,
+            ));
             context.insert("copy_cmd", &copy_cmd);
-
 
             // WORKDIR command
             let mut wordir_cmd_str = String::new();
@@ -69,7 +73,7 @@ impl Dockerfile {
                 docker_file_path.push(DOCKER_TEMPLATE_NAME.to_string());
                 Ok(Self {
                     content,
-                    path: docker_file_path
+                    path: docker_file_path,
                 })
             } else {
                 Err("Failed to render template file".to_string())
@@ -81,10 +85,13 @@ impl Dockerfile {
 }
 
 impl Action for Dockerfile {
-    fn run(&self) -> Result<(), String> {
+    fn run(&self, verbose: bool) -> Result<(), String> {
         if let Some(docker_dir) = self.path.parent() {
             if !docker_dir.exists() {
-                if let Err(e) = std::fs::create_dir_all(docker_dir) {
+                if verbose {
+                    println!("Folder {} doesn't exists, let create it", &docker_dir.display());
+                }
+                if let Err(e) = std::fs::create_dir_all(&docker_dir) {
                     return Err(format!(
                         "Error creating directory {}: {}",
                         docker_dir.display(),
@@ -94,6 +101,9 @@ impl Action for Dockerfile {
             }
         }
 
+        if verbose {
+            println!("Create the file {}", &self.path.display());
+        }
         match std::fs::write(&self.path, &self.content) {
             Err(e) => {
                 return Err(format!(
@@ -108,13 +118,16 @@ impl Action for Dockerfile {
     }
 
     fn dryrun(&self) -> Result<(), String> {
+        println!("--------------------");
+        println!("| Create Dockerfile |");
+        println!("--------------------");
         if let Some(docker_dir) = self.path.parent() {
             if !docker_dir.exists() {
                 println!("Create directory {}", docker_dir.display());
             }
         }
-        println!("Creating the file {}", self.path.display());
-        println!("With content: \n{}", self.content);
+        println!("File location:\n{} \nFile Content:\n{} ", self.path.display(), self.content);
+        
         Ok(())
     }
 }
@@ -137,7 +150,7 @@ impl DockerImage {
 }
 
 impl Action for DockerImage {
-    fn run(&self) -> Result<(), String> {
+    fn run(&self, verbose: bool) -> Result<(), String> {
         let docker_build = Command::new("docker")
             .arg("build")
             .arg("-t")
@@ -145,7 +158,7 @@ impl Action for DockerImage {
             .arg(".")
             .current_dir(&self.dockerfile_path)
             .status()
-            .expect("Failed to execute docker command");
+            .expect("Failed to execute docker build command");
         if !docker_build.success() {
             return Err(format!("Problem to build docker image"));
         }
@@ -154,8 +167,23 @@ impl Action for DockerImage {
 
     // implement the dry run
     fn dryrun(&self) -> Result<(), String> {
-        println!("Execute command:");
-        println!();
+        println!("---------------------");
+        println!("| Build DockerImage |");
+        println!("---------------------");
+        let build_args = [
+            "docker",
+            "build",
+            "-t",
+            &format!("{}:{}", &self.name, &self.tag),
+            ".",
+        ];
+        let build_from = &self.dockerfile_path;
+
+        println!(
+            "From:\n{}\nExecute command:\n{} ",
+            build_from.display(),
+            build_args.join(" ")
+        );
         Ok(())
     }
 }
@@ -196,7 +224,7 @@ fn build_copy_command_str(sources: &Vec<String>, destination_dir: &String) -> St
 
 fn build_extra_copies_command_str(copies_command: &Option<Vec<CopyCommand>>) -> String {
     let mut copy_command_str = String::new();
-    if let Some(copies_command) = copies_command{
+    if let Some(copies_command) = copies_command {
         for command in copies_command {
             let filepath = command.source.split("/");
             let names: Vec<&str> = filepath.collect();
