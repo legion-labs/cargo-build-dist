@@ -24,6 +24,10 @@ serde_json = "1"
 tera = "1"
 itertools = "0.10"
 sha2 = "0.9"
+futures = { version = "0.3.*" }
+tokio = { version = "1", features = ["full"] }
+aws_sdk_ecr = { git = "https://github.com/awslabs/aws-sdk-rust", tag = "v0.0.16-alpha", package = "aws-sdk-ecr" }
+base64 = {version = "0.13.0"}
 
 [package.metadata.docker]
 base = "ubuntu:20.04"

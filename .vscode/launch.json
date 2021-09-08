@@ -22,12 +22,17 @@
             "args": [
                 "-d",
                 "push"
-                "--auto-repository"
+                "--auto-repository",
+                "--registry-type",
+                "aws"
 
             ],
             "cwd": "${workspaceFolder}",
             "env": {
-                "CARGO": "/home/tltran/.cargo/bin/cargo"
+                "CARGO": "/home/tltran/.cargo/bin/cargo",
+                "AWS_ACCESS_KEY_ID": "AKIAY7G3LGYT77URLXWR",
+                "AWS_SECRET_ACCESS_KEY": "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",
+                "AWS_DEFAULT_REGION": "ca-central-1",
             }
         },
         {

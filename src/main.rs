@@ -8,8 +8,9 @@ const ARG_NAME_MANIFEST: &str = "manifest-path";
 const SUBCOMMAND_NAME_BUILD: &str = "build";
 const SUBCOMMAND_NAME_DRYRUN: &str = "dry-run";
 const SUBCOMMAND_NAME_CHECK: &str = "check";
-const SUBCOMMAND_NAME_DEPLOY: &str = "push";
+const SUBCOMMAND_NAME_PUSH: &str = "push";
 const SUBCOMMAND_NAME_AUTO_REPOSITORY_CREATION: &str = "auto-repository";
+const SUBCOMMAND_NAME_REGISTRY_TYPE: &str = "registry-type";
 
 fn main() -> Result<(), String> {
     let cargo = std::env::var("CARGO");
@@ -53,17 +54,17 @@ fn main() -> Result<(), String> {
                 .about("Check docker image based on cargo build artifacts"),
         )
         .subcommand(
-            SubCommand::with_name(SUBCOMMAND_NAME_DEPLOY)
+            SubCommand::with_name(SUBCOMMAND_NAME_PUSH)
                 .about("Deploy docker image")
                 .arg(
-                    Arg::with_name("auto-repository")
-                        .long("auto-repository")
+                    Arg::with_name(SUBCOMMAND_NAME_AUTO_REPOSITORY_CREATION)
+                        .long(SUBCOMMAND_NAME_AUTO_REPOSITORY_CREATION)
                         .required(false)
                         .help("Repository will be create automatically if not exists"),
                 )
                 .arg(
-                    Arg::with_name("registry-type")
-                        .long("registry-type")
+                    Arg::with_name(SUBCOMMAND_NAME_REGISTRY_TYPE)
+                        .long(SUBCOMMAND_NAME_REGISTRY_TYPE)
                         .short("-r")
                         .takes_value(true)
                         .required(false)
@@ -98,26 +99,27 @@ fn main() -> Result<(), String> {
         }
         (SUBCOMMAND_NAME_CHECK, Some(_command_match)) => {
             if let Err(e) = cargo_dockerize::check_build_dependencies(&context) {
-                println!("{}", e);
+                println!("Problem to check build dependencies: {}", e);
             }
         }
-        (SUBCOMMAND_NAME_DEPLOY, Some(command_match)) => {
-            let auto_repository =
-                command_match.is_present(SUBCOMMAND_NAME_AUTO_REPOSITORY_CREATION);
-            if auto_repository {
-                println!("The repository will be automatically create if not exists");
-            } 
-
-            if command_match.is_present("registry-type") {
-                let registry_type = command_match.value_of("registry-type");
-                if let Some(registry_type) = registry_type {
-                    match registry_type {
-                        "aws" => println!("aws"),
-                        _ => println!("something else"),
-                    }
-                }
+        (SUBCOMMAND_NAME_PUSH, Some(command_match)) => {
+            let mut registry_type = String::from("");
+            if command_match.is_present(SUBCOMMAND_NAME_REGISTRY_TYPE) {
+                registry_type.push_str(
+                    command_match
+                        .value_of(SUBCOMMAND_NAME_REGISTRY_TYPE)
+                        .unwrap(),
+                );
+            } else {
+                registry_type.push_str("aws");
             }
-            //cargo_dockerize::deploy_build(&context);
+            if let Err(e) = cargo_dockerize::push_builded_image(
+                &context,
+                registry_type,
+                command_match.is_present(SUBCOMMAND_NAME_AUTO_REPOSITORY_CREATION),
+            ) {
+                println!("Problem to push builded image :{}", e);
+            }
         }
         other_match => println!("Command {:?} doesn't exists", &other_match),
     }

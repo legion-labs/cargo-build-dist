@@ -41,18 +41,6 @@ impl Dockerfile {
             copy_cmd.push_str(&build_extra_copies_command_str(&docker_setting.extra_copies));
             context.insert("copy_cmd", &copy_cmd);
 
-            // // RUN command(s)
-            // if let Ok(_str) = build_run_command_str(&docker_setting.run) {
-            //     context.insert("run_cmd", &_str);
-            // }
-
-            // // ADD USER command
-            // let mut user_cmd_str = String::new();
-            // if let Some(user) = &docker_setting.user {
-            //     user_cmd_str.push_str("USER ");
-            //     user_cmd_str.push_str(user);
-            // }
-            // context.insert("user_cmd", &user_cmd_str);
 
             // WORKDIR command
             let mut wordir_cmd_str = String::new();
