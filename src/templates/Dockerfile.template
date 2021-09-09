@@ -1,5 +1,13 @@
 FROM {{ base }}
-{{ environment }}{{ copy }}
+
+{{ environment }}
+
+{{ copy }}
+
 {{ run }}
-{{ workdir }}{{ expose }}
+
+{{ workdir }}
+
+{{ expose }}
+
 CMD ["./{{ executable }}"]

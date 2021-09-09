@@ -35,7 +35,6 @@ impl Dockerfile {
             // into the dockerfile.
             let docker_setting = &docker_package.docker_settings;
 
-
             context.insert(DOCKER_TEMPLATE_KEY_BASE, &docker_setting.base);
             context.insert(
                 DOCKER_TEMPLATE_KEY_ENV,
@@ -54,12 +53,14 @@ impl Dockerfile {
                 DOCKER_TEMPLATE_KEY_RUN,
                 &build_run_command_str(&docker_setting.run),
             );
-
             context.insert(
                 DOCKER_TEMPLATE_KEY_WORKDIR,
                 &build_workdir_command_str(&docker_setting.workdir),
             );
-            context.insert(DOCKER_TEMPLATE_KEY_EXPOSE, &docker_setting.run);
+            context.insert(
+                DOCKER_TEMPLATE_KEY_EXPOSE,
+                &build_expose_command_str(&docker_setting.expose),
+            );
             context.insert(DOCKER_TEMPLATE_KEY_EXECUTABLE, &docker_package.binaries[0]);
 
             if let Ok(content) = tera.render(DOCKER_TEMPLATE_NAME, &context) {
@@ -207,8 +208,10 @@ fn build_env_variables_command_str(env_variables: &Option<Vec<EnvironmentVariabl
 fn build_run_command_str(run_cmd: &Option<Vec<String>>) -> String {
     let mut cmd_str = String::new();
     if let Some(runs) = run_cmd {
-        cmd_str.push_str("RUN ");
-        cmd_str.push_str(&runs.iter().join(" \\\n"));
+        for run in runs{
+            //cmd_str.push_str(&runs.iter().join(" \\\n"));
+            cmd_str.push_str(&format!("RUN {} \n", run));
+        }
     }
     cmd_str
 }
@@ -230,7 +233,7 @@ fn build_extra_copies_command_str(copies_command: &Option<Vec<CopyCommand>>) -> 
             let names: Vec<&str> = file_path.collect();
             let filename = names.last().expect("File extension cannot be read");
             cmd_str.push_str("COPY ");
-            cmd_str.push_str(&format!("{} {} \n\n", filename, command.destination))
+            cmd_str.push_str(&format!("{} {} \n", filename, command.destination))
         }
     }
     cmd_str
@@ -245,7 +248,7 @@ fn build_workdir_command_str(workdir_cmd: &Option<String>) -> String {
     cmd_str
 }
 
-fn build_expose_command_str(expose_ports: Option<Vec<i32>>) -> String {
+fn build_expose_command_str(expose_ports: &Option<Vec<i32>>) -> String {
     let mut cmd_str = String::new();
     if let Some(ports) = expose_ports {
         if !ports.is_empty() {
@@ -278,11 +281,54 @@ mod tests {
     #[test]
     fn test_build_copy_command_str() {
         let sources: Vec<String> = vec!["f1.txt".to_string(), "other/f2.txt".to_string()];
-        let container_destination_dir = "/usr/src/app";
+        let container_destination_dir = "/usr/src/app/";
 
         let copy_str = build_copy_command_str(&sources, &container_destination_dir.to_string());
-        let t1_str = "COPY f1.txt usr/src/app/f1.txt";
-        let t2_str = "COPY f2.txt /usr/src/app/other/f2.txt";
+        let t1_str = "COPY f1.txt /usr/src/app/";
+        let t2_str = "COPY other/f2.txt /usr/src/app/";
+
         assert_eq!(true, copy_str.contains(t1_str) && copy_str.contains(t2_str));
     }
+
+    #[test]
+    fn test_build_extra_copies_command_str() {
+        let cp1 = CopyCommand {
+            source: "f1.txt".to_string(),
+            destination: "some/folder/".to_string(),
+        };
+        let cp2 = CopyCommand {
+            source: "other/f2.txt".to_string(),
+            destination: "some/other/folder/".to_string(),
+        };
+        let copies: Vec<CopyCommand> = vec![cp1, cp2];
+
+        let copy_str = build_extra_copies_command_str(&Some(copies));
+
+        let t1_str = "COPY f1.txt some/folder/";
+        let t2_str = "COPY f2.txt some/other/folder/";
+
+        assert_eq!(true, copy_str.contains(t1_str) && copy_str.contains(t2_str));
+    }
+
+    #[test]
+    fn test_build_expose_command_str() {
+        let ports: Vec<i32> = vec![8080, 80];
+        let s = build_expose_command_str(&Some(ports));
+        assert_eq!("EXPOSE 8080 80", s);
+    }
+
+    #[test]
+    fn test_build_workdir_command_str() {
+        let workdir = String::from("/usr/src/app/");
+
+        let s = build_workdir_command_str(&Some(workdir));
+        assert_eq!("WORKDIR /usr/src/app/", s);
+    }
+
+    // #[test]
+    // fn test_build_run_command_str(){
+    //     let runs: Vec<String>= vec!["ls -al".to_string(), "echo helloworld".to_string()];
+
+    //     let str1 = "RUN ls -al \";
+    // }
 }
