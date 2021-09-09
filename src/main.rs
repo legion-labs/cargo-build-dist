@@ -36,7 +36,7 @@ fn main() -> Result<(), String> {
         )
         .arg(
             Arg::with_name(ARG_NAME_VERBOSE)
-                .short("d")
+                .short("v")
                 .long(ARG_NAME_VERBOSE)
                 .required(false)
                 .help("Print debug information verbosely"),

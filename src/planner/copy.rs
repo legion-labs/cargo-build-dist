@@ -14,7 +14,6 @@ pub struct CopyFiles {
 impl CopyFiles {
     pub fn new(docker_package: &DockerPackage) -> Result<Self, String> {
         let mut copy_files = vec![];
-
         // copy the binaries files
         for binary in &docker_package.binaries {
             let mut source = PathBuf::from(&docker_package.target_dir.binary_dir);
@@ -56,8 +55,11 @@ impl CopyFiles {
 }
 
 impl Action for CopyFiles {
-    fn run(&self) -> Result<(), String> {
+    fn run(&self, verbose: bool) -> Result<(), String> {
         for copy_file in &self.copy_files {
+            if verbose {
+                println!("Copy file source:{}, destination:{}", &copy_file.source.display(), &copy_file.destination.display());
+            }
             if let Err(e) = fs::copy(&copy_file.source, &copy_file.destination) {
                 return Err(format!("failed to copy file {}", e));
             }

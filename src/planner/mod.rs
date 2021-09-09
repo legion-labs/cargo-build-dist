@@ -2,7 +2,7 @@ mod docker;
 use docker::*;
 
 mod copy;
-use crate::{Dependency};
+use crate::Dependency;
 use copy::*;
 use serde::Deserialize;
 use sha2::{Digest, Sha256};
@@ -46,14 +46,13 @@ pub fn check_build_dependencies(context: &super::Context) -> Result<(), String> 
             } else {
                 println!("Package is ready to be dockerized and pushed to the docker registry\n name:{},\n version:{}\n identified by the deps_hash:{}\n ",
                 package.name,
-                        package.version,
-                        deps_hash);
+                package.version,
+                deps_hash);
             }
         } else {
             return Err("Error, the meta data deps_hash is not provided".to_string());
         }
     }
-
     Ok(())
 }
 
@@ -257,10 +256,5 @@ fn ecr_login(username: String, password: String, endpoint: String) -> Result<(),
             &endpoint, username
         ));
     }
-    Ok(())
-}
-
-pub fn deploy_build_not_implement() -> Result<(), String> {
-    println!("Please implement the registry type");
     Ok(())
 }

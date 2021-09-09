@@ -37,6 +37,12 @@ env = [
     { name = "APP_USER", value = "appuser" },
     { name = "APP", value = "/usr/src/app" },
 ]
+
+run = [
+    "ls -al",
+    "echo hello"
+]
+
 copy_dest_dir = "/usr/src/app/"
 extra_copies = [
     { source = "test-file", destination = "/usr/src/app/" }

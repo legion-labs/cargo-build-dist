@@ -268,12 +268,12 @@ impl Context {
                 ));
             }
 
-            let dependencies = get_transitive_dependencies(&metadata, package_id)?;
-
             let mut docker_dir = PathBuf::new();
-            docker_dir.push(target_dir.clone());
+            docker_dir.push(&target_dir);
             docker_dir.push("docker");
-            docker_dir.push(package.name.clone());
+            docker_dir.push(&package.name);
+
+            let dependencies = get_transitive_dependencies(&metadata, package_id)?;
 
             docker_packages.push(DockerPackage {
                 name: package.name.clone(),
@@ -317,10 +317,7 @@ fn get_transitive_dependencies(
         ));
     }
     let node = node.unwrap();
-
-    //let mut deps = vec![];
     let mut deps = BTreeSet::new();
-
     for dep_id in &node.dependencies {
         let dep = &metadata[dep_id];
 

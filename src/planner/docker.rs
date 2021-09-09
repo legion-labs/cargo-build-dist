@@ -3,6 +3,13 @@ use itertools::Itertools;
 use std::{path::PathBuf, process::Command};
 
 const DOCKER_TEMPLATE_NAME: &str = "Dockerfile";
+const DOCKER_TEMPLATE_KEY_BASE: &str = "base";
+const DOCKER_TEMPLATE_KEY_ENV: &str = "environment";
+const DOCKER_TEMPLATE_KEY_RUN: &str = "run";
+const DOCKER_TEMPLATE_KEY_COPY: &str = "copy";
+const DOCKER_TEMPLATE_KEY_WORKDIR: &str = "workdir";
+const DOCKER_TEMPLATE_KEY_EXPOSE: &str = "expose";
+const DOCKER_TEMPLATE_KEY_EXECUTABLE: &str = "executable";
 
 pub struct Dockerfile {
     content: String,
@@ -26,17 +33,14 @@ impl Dockerfile {
 
             // based on the dockersettings, we need to integrate the necessary docker commands
             // into the dockerfile.
-
-            // FROM command
             let docker_setting = &docker_package.docker_settings;
-            context.insert("base", &docker_setting.base);
 
-            // ENV command
-            if let Ok(_str) = build_env_variables_command_str(&docker_setting.env) {
-                context.insert("env_variable", &_str);
-            }
 
-            // COPY command(s) for extra copy
+            context.insert(DOCKER_TEMPLATE_KEY_BASE, &docker_setting.base);
+            context.insert(
+                DOCKER_TEMPLATE_KEY_ENV,
+                &build_env_variables_command_str(&docker_setting.env),
+            );
             let mut copy_cmd = String::from(build_copy_command_str(
                 &docker_package.binaries,
                 &docker_setting.copy_dest_dir,
@@ -44,28 +48,19 @@ impl Dockerfile {
             copy_cmd.push_str(&build_extra_copies_command_str(
                 &docker_setting.extra_copies,
             ));
-            context.insert("copy_cmd", &copy_cmd);
+            context.insert(DOCKER_TEMPLATE_KEY_COPY, &copy_cmd);
 
-            // WORKDIR command
-            let mut wordir_cmd_str = String::new();
-            if let Some(workdir) = &docker_setting.workdir {
-                wordir_cmd_str.push_str("WORKDIR ");
-                wordir_cmd_str.push_str(workdir);
-            }
-            context.insert("workdir_cmd", &wordir_cmd_str);
+            context.insert(
+                DOCKER_TEMPLATE_KEY_RUN,
+                &build_run_command_str(&docker_setting.run),
+            );
 
-            // EXPOSE command
-            let mut expose_command_str = String::new();
-            if let Some(ports) = &docker_setting.expose {
-                if !ports.is_empty() {
-                    expose_command_str.push_str("EXPOSE ");
-                    let ports_str = ports.iter().join(" ");
-                    expose_command_str.push_str(&ports_str);
-                }
-            }
-            context.insert("expose_cmd", &expose_command_str);
-
-            context.insert("executable", &docker_package.binaries[0]);
+            context.insert(
+                DOCKER_TEMPLATE_KEY_WORKDIR,
+                &build_workdir_command_str(&docker_setting.workdir),
+            );
+            context.insert(DOCKER_TEMPLATE_KEY_EXPOSE, &docker_setting.run);
+            context.insert(DOCKER_TEMPLATE_KEY_EXECUTABLE, &docker_package.binaries[0]);
 
             if let Ok(content) = tera.render(DOCKER_TEMPLATE_NAME, &context) {
                 let mut docker_file_path =
@@ -89,7 +84,10 @@ impl Action for Dockerfile {
         if let Some(docker_dir) = self.path.parent() {
             if !docker_dir.exists() {
                 if verbose {
-                    println!("Folder {} doesn't exists, let create it", &docker_dir.display());
+                    println!(
+                        "Folder {} doesn't exists, let create it",
+                        &docker_dir.display()
+                    );
                 }
                 if let Err(e) = std::fs::create_dir_all(&docker_dir) {
                     return Err(format!(
@@ -126,8 +124,12 @@ impl Action for Dockerfile {
                 println!("Create directory {}", docker_dir.display());
             }
         }
-        println!("File location:\n{} \nFile Content:\n{} ", self.path.display(), self.content);
-        
+        println!(
+            "File location:\n{} \nFile Content:\n{} ",
+            self.path.display(),
+            self.content
+        );
+
         Ok(())
     }
 }
@@ -188,52 +190,71 @@ impl Action for DockerImage {
     }
 }
 
-fn build_env_variables_command_str(
-    env_variables: &Option<Vec<EnvironmentVariable>>,
-) -> Result<String, String> {
-    let mut env_variables_command_str = String::new();
+fn build_env_variables_command_str(env_variables: &Option<Vec<EnvironmentVariable>>) -> String {
+    let mut cmd_str = String::new();
     if let Some(variables) = env_variables {
-        env_variables_command_str.push_str("ENV ");
+        cmd_str.push_str("ENV ");
         let env_variables: Vec<String> = variables
             .iter()
             .filter(|var| !var.name.is_empty() && !var.value.is_empty())
             .map(|var| format!("{}={}", var.name, var.value))
             .collect();
-        env_variables_command_str.push_str(&env_variables.iter().join(" \\\n"));
+        cmd_str.push_str(&env_variables.iter().join(" \\\n"));
     }
-    Ok(env_variables_command_str)
+    cmd_str
 }
 
 fn build_run_command_str(run_cmd: &Option<Vec<String>>) -> String {
-    let mut run_command_str = String::new();
+    let mut cmd_str = String::new();
     if let Some(runs) = run_cmd {
-        run_command_str.push_str("RUN ");
-        run_command_str.push_str(&runs.iter().join(" \\\n"));
+        cmd_str.push_str("RUN ");
+        cmd_str.push_str(&runs.iter().join(" \\\n"));
     }
-    run_command_str
+    cmd_str
 }
 
 fn build_copy_command_str(sources: &Vec<String>, destination_dir: &String) -> String {
-    let mut copy_command_str = String::new();
+    let mut cmd_str = String::new();
     for source in sources {
-        copy_command_str.push_str("COPY ");
-        copy_command_str.push_str(&format!("{} {} \n\n", source, destination_dir))
+        cmd_str.push_str("COPY ");
+        cmd_str.push_str(&format!("{} {} \n\n", source, destination_dir))
     }
-    copy_command_str
+    cmd_str
 }
 
 fn build_extra_copies_command_str(copies_command: &Option<Vec<CopyCommand>>) -> String {
-    let mut copy_command_str = String::new();
+    let mut cmd_str = String::new();
     if let Some(copies_command) = copies_command {
         for command in copies_command {
-            let filepath = command.source.split("/");
-            let names: Vec<&str> = filepath.collect();
+            let file_path = command.source.split("/");
+            let names: Vec<&str> = file_path.collect();
             let filename = names.last().expect("File extension cannot be read");
-            copy_command_str.push_str("COPY ");
-            copy_command_str.push_str(&format!("{} {} \n\n", filename, command.destination))
+            cmd_str.push_str("COPY ");
+            cmd_str.push_str(&format!("{} {} \n\n", filename, command.destination))
         }
     }
-    copy_command_str
+    cmd_str
+}
+
+fn build_workdir_command_str(workdir_cmd: &Option<String>) -> String {
+    let mut cmd_str = String::new();
+    if let Some(workdir) = workdir_cmd {
+        cmd_str.push_str("WORKDIR ");
+        cmd_str.push_str(workdir);
+    }
+    cmd_str
+}
+
+fn build_expose_command_str(expose_ports: Option<Vec<i32>>) -> String {
+    let mut cmd_str = String::new();
+    if let Some(ports) = expose_ports {
+        if !ports.is_empty() {
+            cmd_str.push_str("EXPOSE ");
+            let ports_str = ports.iter().join(" ");
+            cmd_str.push_str(&ports_str);
+        }
+    }
+    cmd_str
 }
 
 fn escape_docker(input: &str) -> String {
