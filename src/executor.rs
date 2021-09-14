@@ -12,7 +12,6 @@ pub fn render(actions: Vec<Box<dyn crate::Action>>, verbose:bool) {
 }
 
 pub fn dryrun_render(actions: Vec<Box<dyn crate::Action>>) {
-    println!("Dry-run execution");
     for action in actions {
         if let Err(e) = action.dryrun() {
             println!("Error in dry_render {}", e);
