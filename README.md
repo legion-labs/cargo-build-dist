@@ -2,13 +2,25 @@
 
 The goal of this cargo sub command is to package a given crate binaries in a docker container, it takes into consideration the crate dependencies to define if the crate version should be bumped effectively, it is more useful in the context of a monorepo like the one Legion Labs maintains.
 
-## How to:
+## How to
 
-Add target/debug in path and run `cargo dockerize build`
+```bash
+USAGE:
+    cargo-dockerize [FLAGS] [OPTIONS] [SUBCOMMAND]
 
-you should a similar output to this:
+FLAGS:
+    -d, --debug      Print debug information verbosely
+    -h, --help       Prints help information
+    -V, --version    Prints version information
+    -v, --verbose    Print debug information verbosely
 
-```
-[DockerPacakge { name: "cargo-dockerize", version: "0.1.0", toml_path: "C:\\workspace\\github.com\\legion-labs\\cargo-docker\\Cargo.toml", binaries: ["cargo-dockerize"], docker_settings: DockerSettings { deps_hash: "aa" }, deps: [Dependency { name: "cargo_metadata", version: "0.14.0" }, Dependency { name: "cargo_toml", version: "0.9.2" }, Dependency { name: "clap", version: "2.33.3" }, Dependency { name: "serde", version: "1.0.126" }, Dependency { 
-name: "serde_json", version: "1.0.64" }] }]
+OPTIONS:
+    -m, --manifest-path <manifest-path>    Path to Cargo.toml
+
+SUBCOMMANDS:
+    build      Build docker image containing cargo build artifacts
+    check      Check docker image based on cargo build artifacts
+    dry-run    Execute a dry-run of the build image
+    help       Prints this message or the help of the given subcommand(s)
+    push       Deploy docker image
 ```
