@@ -4,14 +4,12 @@
 
 use cargo_metadata::PackageId;
 use serde::Deserialize;
-use std::path::PathBuf;
 use std::{
+    cmp::Ordering,
+    collections::BTreeSet,
     convert::{TryFrom, TryInto},
-    vec,
+    path::PathBuf
 };
-
-use std::cmp::Ordering;
-use std::collections::BTreeSet;
 
 #[derive(Debug, Eq, Clone)]
 pub struct Dependency {
@@ -20,7 +18,9 @@ pub struct Dependency {
 }
 impl Ord for Dependency {
     fn cmp(&self, other: &Self) -> Ordering {
-        self.name.cmp(&other.name).then(self.version.cmp(&other.version))
+        self.name
+            .cmp(&other.name)
+            .then(self.version.cmp(&other.version))
     }
 }
 
@@ -202,9 +202,12 @@ impl Context {
         }
         let metadata = metadata.unwrap();
 
-        let target_dir = PathBuf::from(metadata.target_directory.as_path().join(if is_debug_mode { "debug" } else { "release" }));
-
-
+        let target_dir =
+            PathBuf::from(metadata.target_directory.as_path().join(if is_debug_mode {
+                "debug"
+            } else {
+                "release"
+            }));
 
         let mut docker_packages = vec![];
         // for each workspace member, we're going to build a DockerPackage
