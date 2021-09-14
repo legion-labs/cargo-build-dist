@@ -113,13 +113,6 @@ fn main() -> Result<(), String> {
             }
         }
         (SUBCOMMAND_NAME_DRYRUN, Some(_command_match)) => {
-            // if let Ok(actions) = cargo_dockerize::plan_build(&context) {
-            //     let result = cargo_dockerize::check_build_dependencies(&context);
-            //     match result {
-            //         Ok(()) => cargo_dockerize::dryrun_render(actions),
-            //         Err(e) => println!("{}", e),
-            //     }
-            // }
             match cargo_dockerize::plan_build(&context) {
                 Ok(actions) => {
                     let result = cargo_dockerize::check_build_dependencies(&context);
