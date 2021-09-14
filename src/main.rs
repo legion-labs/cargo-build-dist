@@ -11,7 +11,8 @@ const SUBCOMMAND_NAME_DRYRUN: &str = "dry-run";
 const SUBCOMMAND_NAME_CHECK: &str = "check";
 const SUBCOMMAND_NAME_PUSH: &str = "push";
 const SUBCOMMAND_NAME_AUTO_REPOSITORY_CREATION: &str = "auto-repository";
-const SUBCOMMAND_NAME_REGISTRY_TYPE: &str = "registry-type";
+const SUBCOMMAND_NAME_REGISTRY_TYPE: &str = "registry";
+
 const DEFAULT_REGISTRY_TYPE: &str = "aws";
 fn main() -> Result<(), String> {
     let cargo = std::env::var("CARGO");
@@ -89,8 +90,6 @@ fn main() -> Result<(), String> {
         }
     }
 
-    
-
     // build the context
     let context = cargo_dockerize::Context::build(
         &cargo,
@@ -100,22 +99,36 @@ fn main() -> Result<(), String> {
 
     match matches.subcommand() {
         (SUBCOMMAND_NAME_BUILD, Some(_command_match)) => {
-            if let Ok(actions) = cargo_dockerize::plan_build(&context) {              
-                let result= cargo_dockerize::check_build_dependencies(&context);
-                match result {
-                    Ok(()) => cargo_dockerize::render(actions, matches.is_present(ARG_NAME_VERBOSE)),
-                    Err(e) => println!("{}", e)
+            match cargo_dockerize::plan_build(&context) {
+                Ok(actions) => {
+                    let result = cargo_dockerize::check_build_dependencies(&context);
+                    match result {
+                        Ok(()) => {
+                            cargo_dockerize::render(actions, matches.is_present(ARG_NAME_VERBOSE))
+                        }
+                        Err(e) => println!("{}", e),
+                    }
                 }
+                Err(e) => println!("Problem while prepare plan {}", e),
             }
         }
         (SUBCOMMAND_NAME_DRYRUN, Some(_command_match)) => {
             if let Ok(actions) = cargo_dockerize::plan_build(&context) {
-                
-                let result= cargo_dockerize::check_build_dependencies(&context);
+                let result = cargo_dockerize::check_build_dependencies(&context);
                 match result {
                     Ok(()) => cargo_dockerize::dryrun_render(actions),
-                    Err(e) => println!("{}", e)
+                    Err(e) => println!("{}", e),
                 }
+            }
+            match cargo_dockerize::plan_build(&context) {
+                Ok(actions) => {
+                    let result = cargo_dockerize::check_build_dependencies(&context);
+                    match result {
+                        Ok(()) => cargo_dockerize::dryrun_render(actions),
+                        Err(e) => println!("{}", e),
+                    }
+                }
+                Err(e) => println!("Problem while preparing the plan {}", e),
             }
         }
         (SUBCOMMAND_NAME_CHECK, Some(_command_match)) => {
@@ -126,7 +139,9 @@ fn main() -> Result<(), String> {
         (SUBCOMMAND_NAME_PUSH, Some(command_match)) => {
             if let Err(e) = cargo_dockerize::push_builded_image(
                 &context,
-                command_match.value_of(SUBCOMMAND_NAME_REGISTRY_TYPE).unwrap().to_string(),
+                command_match
+                    .value_of(SUBCOMMAND_NAME_REGISTRY_TYPE)
+                    .unwrap_or_default(),
                 command_match.is_present(SUBCOMMAND_NAME_AUTO_REPOSITORY_CREATION),
             ) {
                 println!("Failed to push builded image : {}", e);

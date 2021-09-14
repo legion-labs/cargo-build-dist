@@ -82,10 +82,3 @@ pub use planner::*;
 mod executor;
 pub use executor::*;
 
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn it_works() {
-        assert_eq!(2 + 2, 4);
-    }
-}

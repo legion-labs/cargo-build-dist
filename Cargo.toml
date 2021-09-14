@@ -31,7 +31,7 @@ base64 = {version = "0.13.0"}
 
 [package.metadata.docker]
 base = "ubuntu:20.04"
-deps_hash = "2576e945846146054ee74bf2d5e8563f85f0af2f2330eb02de5bab2654a93b8f"
+deps_hash = "f9d194bf3f00f0b1bbd71a6c4d4853c67229a115460aea78cc7f0dcbb80abcd2"
 env = [
     { name = "TZ", value = "Etc/UTC" },
     { name = "APP_USER", value = "appuser" },
@@ -45,5 +45,5 @@ run = [
 
 copy_dest_dir = "/usr/src/app/"
 extra_copies = [
-    { source = "test-file", destination = "/usr/src/app/" }
+    { source = "src/test/test-file", destination = "/usr/src/app/" }
 ]

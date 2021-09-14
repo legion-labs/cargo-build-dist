@@ -2,13 +2,13 @@
 //! all relevant information for the rest of the commands, most notably
 //! the tree of workspace members containing a package.metadata.docker entry
 
+use cargo_metadata::PackageId;
+use serde::Deserialize;
 use std::path::PathBuf;
 use std::{
     convert::{TryFrom, TryInto},
     vec,
 };
-use cargo_metadata::PackageId;
-use serde::Deserialize;
 
 use std::cmp::Ordering;
 use std::collections::BTreeSet;
@@ -20,9 +20,7 @@ pub struct Dependency {
 }
 impl Ord for Dependency {
     fn cmp(&self, other: &Self) -> Ordering {
-        let _self = self.name.to_string() + &self.version.to_string();
-        let _other = other.name.to_string() + &other.version.to_string();
-        _self.cmp(&_other)
+        self.name.cmp(&other.name).then(self.version.cmp(&other.version))
     }
 }
 
@@ -48,8 +46,7 @@ struct DockerMetadata {
     pub expose: Option<Vec<i32>>,
     pub workdir: Option<String>,
     pub extra_copies: Option<Vec<CopyCommand>>,
-    pub entrypoint: Option<String>,
-    pub user: Option<String>,
+    pub extra_commands: Option<Vec<String>>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -85,8 +82,7 @@ pub struct DockerSettings {
     pub expose: Option<Vec<i32>>,
     pub workdir: Option<String>,
     pub extra_copies: Option<Vec<CopyCommand>>,
-    pub entrypoint: Option<String>,
-    pub user: Option<String>,
+    pub extra_commands: Option<Vec<String>>,
 }
 
 impl TryFrom<Metadata> for Option<DockerSettings> {
@@ -97,34 +93,22 @@ impl TryFrom<Metadata> for Option<DockerSettings> {
             // validate having base FROM.
             let base = &docker_metadata.base;
             if base.trim().is_empty() {
-                return Err(format!("Container BASE cannot be empty"));
-            }
-
-            if let Some(user) = &docker_metadata.user {
-                if user.trim().is_empty() {
-                    return Err(format!("User cannot be empty"));
-                }
+                return Err("Container BASE cannot be empty".to_string());
             }
 
             if let Some(workdir) = &docker_metadata.workdir {
                 if workdir.trim().is_empty() {
-                    return Err(format!("Working directory cannot be empty"));
-                }
-            }
-
-            if let Some(entrypoint) = &docker_metadata.entrypoint {
-                if entrypoint.trim().is_empty() {
-                    return Err(format!("Entrypoint cannot be empty"));
+                    return Err("Working directory cannot be empty".to_string());
                 }
             }
 
             if let Some(runs) = &docker_metadata.run {
                 if runs.is_empty() {
-                    return Err(format!("Runs commands cannot be empty"));
+                    return Err("Runs commands cannot be empty".to_string());
                 } else {
                     for run in runs {
                         if run.trim().is_empty() {
-                            return Err(format!("Run command cannot be empty"));
+                            return Err("Run command cannot be empty".to_string());
                         }
                     }
                 }
@@ -132,22 +116,22 @@ impl TryFrom<Metadata> for Option<DockerSettings> {
 
             if let Some(ports) = &docker_metadata.expose {
                 if ports.is_empty() {
-                    return Err(format!("Port cannot be empty"));
+                    return Err("Port cannot be empty".to_string());
                 }
             }
 
             let copy_dest_dir = &docker_metadata.copy_dest_dir;
             if copy_dest_dir.trim().is_empty() {
-                return Err(format!("Copy destination directory cannot be empty"));
+                return Err("Copy destination directory cannot be empty".to_string());
             }
 
             if let Some(extra_copies) = &docker_metadata.extra_copies {
                 if extra_copies.is_empty() {
-                    return Err(format!("Extra copies should not be empty if declared"));
+                    return Err("Extra copies should not be empty if declared".to_string());
                 } else {
                     for extra_copy in extra_copies {
                         if extra_copy.source.is_empty() {
-                            return Err(format!("Extra copy source cannot be empty"));
+                            return Err("Extra copy source cannot be empty".to_string());
                         }
                     }
                 }
@@ -157,13 +141,12 @@ impl TryFrom<Metadata> for Option<DockerSettings> {
                 deps_hash: docker_metadata.deps_hash,
                 base: docker_metadata.base,
                 workdir: docker_metadata.workdir,
-                entrypoint: docker_metadata.entrypoint,
                 expose: docker_metadata.expose,
                 run: docker_metadata.run,
                 env: docker_metadata.env,
                 copy_dest_dir: docker_metadata.copy_dest_dir,
                 extra_copies: docker_metadata.extra_copies,
-                user: docker_metadata.user,
+                extra_commands: docker_metadata.extra_commands,
             }))
         } else {
             Ok(None)
@@ -219,10 +202,9 @@ impl Context {
         }
         let metadata = metadata.unwrap();
 
-        let mut target_dir = PathBuf::new();
+        let target_dir = PathBuf::from(metadata.target_directory.as_path().join(if is_debug_mode { "debug" } else { "release" }));
 
-        target_dir.push(metadata.target_directory.as_path());
-        target_dir.push(if is_debug_mode { "debug" } else { "release" });
+
 
         let mut docker_packages = vec![];
         // for each workspace member, we're going to build a DockerPackage
@@ -268,10 +250,7 @@ impl Context {
                 ));
             }
 
-            let mut docker_dir = PathBuf::new();
-            docker_dir.push(&target_dir);
-            docker_dir.push("docker");
-            docker_dir.push(&package.name);
+            let docker_dir = PathBuf::from(&target_dir.join("docker").join(&package.name));
 
             let dependencies = get_transitive_dependencies(&metadata, package_id)?;
 
@@ -284,11 +263,11 @@ impl Context {
                 dependencies,
                 target_dir: TargetDir {
                     binary_dir: target_dir.clone(),
-                    docker_dir: docker_dir,
+                    docker_dir,
                 },
-            })
+            });
         }
-        Ok(Context {
+        Ok(Self {
             target_dir,
             docker_packages,
             manifest_path: Some(path),
@@ -306,6 +285,7 @@ fn get_transitive_dependencies(
             metadata.workspace_root
         ));
     }
+    // Can be unwrapped SAFELY after validating the not None resolve and being positively sure there is no error.
     let resolve = metadata.resolve.as_ref().unwrap();
 
     // accumulating all the resolved dependencies
@@ -316,6 +296,7 @@ fn get_transitive_dependencies(
             package_id
         ));
     }
+    // node can be unwrap SAFELY since we have validate it is not
     let node = node.unwrap();
     let mut deps = BTreeSet::new();
     for dep_id in &node.dependencies {
