@@ -24,3 +24,53 @@ SUBCOMMANDS:
     help       Prints this message or the help of the given subcommand(s)
     push       Deploy docker image
 ```
+
+Subcommands
+
+```bash
+Build docker image containing cargo build artifacts
+
+USAGE:
+    cargo-dockerize build
+
+FLAGS:
+    -h, --help       Prints help information
+    -V, --version    Prints version information
+```
+
+Execute a dry-run of the build image
+
+```bash
+USAGE:
+    cargo-dockerize dry-run
+
+FLAGS:
+    -h, --help       Prints help information
+    -V, --version    Prints version information
+```
+
+Check docker image based on cargo build artifacts
+
+```bash
+USAGE:
+    cargo-dockerize check
+
+FLAGS:
+    -h, --help       Prints help information
+    -V, --version    Prints version information
+```
+
+Deploy docker image
+
+```bash
+USAGE:
+    cargo-dockerize push [FLAGS] [OPTIONS]
+
+FLAGS:
+    -a, --auto-repository    Repository will be create automatically if not exists
+    -h, --help               Prints help information
+    -V, --version            Prints version information
+
+OPTIONS:
+    -r, --registry <registry>    Repository will be create automatically if not exists [default: aws]
+```
