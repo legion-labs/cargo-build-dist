@@ -25,7 +25,7 @@ SUBCOMMANDS:
     push       Deploy docker image
 ```
 
-Subcommands
+Subcommands's description
 
 ```bash
 Build docker image containing cargo build artifacts
@@ -38,9 +38,8 @@ FLAGS:
     -V, --version    Prints version information
 ```
 
-Execute a dry-run of the build image
-
 ```bash
+Execute a dry-run of the build image
 USAGE:
     cargo-dockerize dry-run
 
@@ -49,9 +48,10 @@ FLAGS:
     -V, --version    Prints version information
 ```
 
-Check docker image based on cargo build artifacts
+
 
 ```bash
+Check docker image based on cargo build artifacts
 USAGE:
     cargo-dockerize check
 
@@ -60,9 +60,10 @@ FLAGS:
     -V, --version    Prints version information
 ```
 
-Deploy docker image
+
 
 ```bash
+Deploy docker image
 USAGE:
     cargo-dockerize push [FLAGS] [OPTIONS]
 
