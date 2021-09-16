@@ -82,7 +82,7 @@ fn main() -> Result<(), String> {
                         .help("Repository will be create automatically if not exists"),
                 ),
         )
-        .get_matches_from(&args[0..]);
+        .get_matches_from(&args[1..]);
 
     if let Some(_path) = matches.value_of(ARG_NAME_MANIFEST) {
         if _path.trim().is_empty() {
