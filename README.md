@@ -1,5 +1,10 @@
-# cargo-dockerize subcommand
+# Cargo dockerize
 
+Package Rust binary in Docker container
+
+## About
+
+`cargo-dockerize` is a tool used to build a docker image based on the Rust binary and it dependencies.
 The goal of this cargo sub command is to package a given crate binaries in a docker container, it takes into consideration the crate dependencies to define if the crate version should be bumped effectively, it is more useful in the context of a monorepo like the one Legion Labs maintains.
 
 ## How to
@@ -25,53 +30,77 @@ SUBCOMMANDS:
     push       Deploy docker image
 ```
 
-Subcommands's description
+## Bundle manifest format
 
-```bash
-Build docker image containing cargo build artifacts
+There are several fields in the `[package.metadata.docker]` section. 
 
-USAGE:
-    cargo-dockerize build
+### Settings
 
-FLAGS:
-    -h, --help       Prints help information
-    -V, --version    Prints version information
+* `base`: Every dockerfile stars with an image, the base, is the equivalent to the FROM instruction at the beginning of the dockerfile. 
+* `deps_hash`: Representing the hash of the dependencies of the package.  This value is calculate based on the name and version of cumulated dependencies.  The usage of the subcommand `check` of the dockerize tool will provide the package hash dependencies.
+* `env`: Set the environment variables in the container.
+* `copy_dest_dir`: Specific path in the container where will be located the crate's binary.
+* `extra_copies`: List of files that needed to be copieds from the a source to a specific path in the container.
+* `extra_commands`: List of DOCKER command to be executed in the container.
+* `expose`: List of ports on which the container will listen on.
+* `workdir`: Path where the shell will be changed into.
+
+Settings such as `base`, `copy_dest_dir`, `extra_copies`, `extra_commands`, `expose`, `workdir` are meant to construct the Dockerfile that willl be used to build a docker image.
+
+The setting `deps_hash` is used validate that after calculating the crate's transitive dependencies (name, version), we need or not to bump the version of the crate.
+
+Example of Cargo manifest:
+
+```toml
+...
+[package.metadata.docker]
+
+base = "ubuntu:20.04"
+
+deps_hash = "f9d194bf3f00f0b1bbd71a6c4d4853c67229a115460aea78cc7f0dcbb80abcd2"
+
+env = [
+    { name = "TZ", value = "Etc/UTC" },
+    { name = "APP_USER", value = "appuser" },
+    { name = "APP", value = "/usr/src/app" },
+]
+
+copy_dest_dir = "/usr/src/app/"
+
+extra_copies = [
+    { source = "src/test/test-file", destination = "/usr/src/app/" }
+]
+
+extra_commands = [
+    "RUN ls -al",
+    "RUN echo hello > hello.txt",
+    "RUN cat /usr/scr/app/testfile"
+]
+
+expose = [80, 100]
+
+workdir = "/usr/src/app/"
 ```
 
-```bash
-Execute a dry-run of the build image
-USAGE:
-    cargo-dockerize dry-run
-
-FLAGS:
-    -h, --help       Prints help information
-    -V, --version    Prints version information
-```
-
-
+Which will generate a Dockerfile with the following content:
 
 ```bash
-Check docker image based on cargo build artifacts
-USAGE:
-    cargo-dockerize check
+FROM ubuntu:20.04
 
-FLAGS:
-    -h, --help       Prints help information
-    -V, --version    Prints version information
-```
+ENV TZ=Etc/UTC \
+APP_USER=appuser \
+APP=/usr/src/app
 
+COPY cargo-dockerize /usr/src/app/
+COPY test-file /usr/src/app/
 
+RUN ls -al
+RUN echo hello > hello.txt
+RUN cat /usr/src/app/test-file
 
-```bash
-Deploy docker image
-USAGE:
-    cargo-dockerize push [FLAGS] [OPTIONS]
+EXPOSE 80 100
 
-FLAGS:
-    -a, --auto-repository    Repository will be create automatically if not exists
-    -h, --help               Prints help information
-    -V, --version            Prints version information
+WORKDIR /usr/src/app/
 
-OPTIONS:
-    -r, --registry <registry>    Repository will be create automatically if not exists [default: aws]
+CMD ["./cargo-dockerize"]
 ```
