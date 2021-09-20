@@ -9,3 +9,11 @@ jobs:
     steps:
       - uses: actions/checkout@v2
       - run: cowsay -f ghostbusters "Testing Who ya gonna call?"
+
+  cowsay2:
+    runs-on: [self-hosted, c5.xlarge]
+    container: npalm/cowsay
+
+    steps:
+      - uses: actions/checkout@v2
+      - run: cowsay -f ghostbusters "Testing Who ya gonna call?"
