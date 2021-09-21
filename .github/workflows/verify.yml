@@ -5,7 +5,19 @@ jobs:
   cowsay:
     runs-on: [self-hosted, ubuntu]
     container: npalm/cowsay
-
     steps:
       - uses: actions/checkout@v2
       - run: cowsay -f ghostbusters "Testing Who ya gonna call?"
+
+  lint:
+    runs-on: [self-hosted, ubuntu]
+    container:
+      image: ghcr.io/legion-labs/build-env-linux-rust:0.1.0
+      credentials:
+        username: ${{ github.repository_owner }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+          steps:
+      - uses: actions/checkout@v2
+
+      - name: Run hello
+        run: echo "Hello world"
