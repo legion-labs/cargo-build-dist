@@ -8,7 +8,7 @@ use std::{
     cmp::Ordering,
     collections::BTreeSet,
     convert::{TryFrom, TryInto},
-    path::PathBuf
+    path::PathBuf,
 };
 
 #[derive(Debug, Eq, Clone)]

@@ -24,7 +24,8 @@ impl TokenCredentials {
     }
 }
 
-pub async fn get_credentials_from_aws_ecr_authorization_token() -> Result<TokenCredentials, String> {
+pub async fn get_credentials_from_aws_ecr_authorization_token() -> Result<TokenCredentials, String>
+{
     let client = aws_sdk_ecr::Client::from_env();
     let resp = client.get_authorization_token().send().await;
     match resp {
@@ -77,7 +78,3 @@ pub async fn create_repository(name: String) -> Result<(), String> {
         Err(e) => Err(format!("Failed to create repository {} : {}", &name, e)),
     }
 }
-
-
-
-

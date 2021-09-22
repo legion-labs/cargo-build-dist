@@ -3,7 +3,7 @@
 //! if --no-run is specified the executor early out.
 
 /// trying the use of template, easier than manipulating strings
-pub fn render(actions: Vec<Box<dyn crate::Action>>, verbose:bool) {
+pub fn render(actions: Vec<Box<dyn crate::Action>>, verbose: bool) {
     for action in actions {
         if let Err(e) = action.run(verbose) {
             println!("failed in render {}", e);
