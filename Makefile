@@ -23,6 +23,14 @@ check-clippy:
 dockerize:
 	echo "cargo dockerize build"
 
+dockerize-release:
+	echo "cargo dockerize build --release"
+
+dockerize-push:
+	echo "cargo dockerize -d push --auto-repository true --provider aws"
+
+build-all: build build-release
+
 build:
 	cargo build
 
@@ -31,3 +39,11 @@ build-release:
 
 clean:
 	cargo clean
+
+test: test-build test-run
+
+test-build:
+	cargo test --no-run
+
+test-run:
+	cargo test

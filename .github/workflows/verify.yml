@@ -10,6 +10,7 @@ jobs:
       - run: cowsay -f ghostbusters "Testing Who ya gonna call?"
       
   lint:
+    name: Running Linter
     runs-on: [self-hosted, ubuntu]
     container:
       image: ghcr.io/legion-labs/build-env-linux-rust:0.1.0
@@ -18,9 +19,6 @@ jobs:
         password: ${{ secrets.GITHUB_TOKEN }}
     steps:
     - uses: actions/checkout@v2
-
-    - name: Run hello
-      run: echo "Hello world"
     
     - name: run formatting check
       run: make check-format
@@ -33,5 +31,61 @@ jobs:
 
     - name: Run dockerize checks
       run: make check-dockerize
+  
+  test:
+    name: Running Test
+    needs: lint
+    runs-on: [self-hosted, ubuntu]
+    container:
+      image: ghcr.io/legion-labs/build-env-linux-rust:0.1.0
+      credentials:
+        username: ${{ github.repository_owner }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+    - uses: actions/checkout@v2
+    
+    - name: Build tests
+      run: >-
+        docker run
+        -- name cargo_build
+        --rm
+        --workdir /github/workspace
+        -v ${{ github.workspace }}:/github/workspace
+        ghcr.io/legion-labs/build-env-linux-rust:0.1.0
+        make test-build
+
+  build_release:
+    name: Building release binaries
+    needs: lint
+    runs-on: [self-hosted, ubuntu]
+    container:
+      image: ghcr.io/legion-labs/build-env-linux-rust:0.1.0
+      credentials:
+        username: ${{ github.repository_owner }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+    
+    steps:
+    - uses: actions/checkout@v2
+    
+    - name: Build release
+      run:  make build-release
+
+  dockerize:
+    name: Building docker image and deploying them
+    runs-on: [self-hosted, ubuntu]
+    container:
+      image: ghcr.io/legion-labs/build-env-linux-rust:0.1.0
+      credentials:
+        username: ${{ github.repository_owner }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+    - uses: actions/checkout@v2
+
+    - name: Docker build
+      run: make dockerize-release
+
+    - name: Docker push image
+      run: make dockerize-push
+
 
     
