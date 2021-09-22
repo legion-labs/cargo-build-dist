@@ -42,7 +42,15 @@ jobs:
         username: ${{ github.repository_owner }}
         password: ${{ secrets.GITHUB_TOKEN }}
     steps:
-    - uses: docker/login-action@v1
+    - uses: actions/checkout@v2
+
+    - name: Login to Github Container Registry
+      uses: docker/login-action@v1
+      with: 
+        registry: ghcr.io
+        username: ${{ github.repository_owner }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
     - name: Build tests
       run: >-
         docker run
