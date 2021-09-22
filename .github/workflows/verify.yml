@@ -11,7 +11,12 @@ jobs:
       
   lint:
     runs-on: [self-hosted, ubuntu]
-    steps:
+    container:
+      image: ghcr.io/legion-labs/build-env-linux-rust:0.1.0
+      credentials:
+        username: ${{ github.repository_owner }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+      steps:
       - uses: actions/checkout@v2
 
       - name: Run hello
