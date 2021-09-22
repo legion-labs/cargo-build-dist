@@ -43,23 +43,8 @@ jobs:
         password: ${{ secrets.GITHUB_TOKEN }}
     steps:
     - uses: actions/checkout@v2
-
-    - name: Login to Github Container Registry
-      uses: docker/login-action@v1
-      with: 
-        registry: ghcr.io
-        username: ${{ github.repository_owner }}
-        password: ${{ secrets.GITHUB_TOKEN }}
-
     - name: Build tests
-      run: >-
-        docker run
-        -- name cargo_build
-        --rm
-        --workdir /github/workspace
-        -v ${{ github.workspace }}:/github/workspace
-        ghcr.io/legion-labs/build-env-linux-rust:0.1.0
-        make test-build
+      run:  make test-build
 
   build_release:
     name: Building release binaries
