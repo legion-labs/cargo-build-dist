@@ -1,14 +1,7 @@
 name: verify
 on: [push]
 
-jobs:
-  cowsay:
-    runs-on: [self-hosted, ubuntu]
-    container: npalm/cowsay
-    steps:
-      - uses: actions/checkout@v2
-      - run: cowsay -f ghostbusters "Testing Who ya gonna call?"
-      
+jobs:   
   lint:
     name: Running Linter
     runs-on: [self-hosted, ubuntu]
@@ -86,6 +79,3 @@ jobs:
 
     - name: Docker push image
       run: make dockerize-push
-
-
-    
