@@ -21,3 +21,17 @@ jobs:
 
     - name: Run hello
       run: echo "Hello world"
+    
+    - name: run formatting check
+      run: make check-format
+
+    - name: Run build checks
+      run: make check-build
+
+    - name: Run clippy checks
+      run: make check-clippy
+
+    - name: Run dockerize checks
+      run: make check-dockerize
+
+    
