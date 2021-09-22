@@ -11,7 +11,7 @@ const SUBCOMMAND_NAME_DRYRUN: &str = "dry-run";
 const SUBCOMMAND_NAME_CHECK: &str = "check";
 const SUBCOMMAND_NAME_PUSH: &str = "push";
 const SUBCOMMAND_NAME_AUTO_REPOSITORY_CREATION: &str = "auto-repository";
-const SUBCOMMAND_NAME_REGISTRY_TYPE: &str = "registry";
+const SUBCOMMAND_NAME_REGISTRY_TYPE: &str = "provider";
 
 const DEFAULT_REGISTRY_TYPE: &str = "aws";
 fn main() -> Result<(), String> {
@@ -67,19 +67,18 @@ fn main() -> Result<(), String> {
                 .about("Deploy docker image")
                 .arg(
                     Arg::with_name(SUBCOMMAND_NAME_AUTO_REPOSITORY_CREATION)
-                        .short("-a")
                         .long(SUBCOMMAND_NAME_AUTO_REPOSITORY_CREATION)
+                        .default_value("false")
                         .required(false)
                         .help("Repository will be create automatically if not exists"),
                 )
                 .arg(
                     Arg::with_name(SUBCOMMAND_NAME_REGISTRY_TYPE)
                         .long(SUBCOMMAND_NAME_REGISTRY_TYPE)
-                        .short("-r")
                         .takes_value(true)
                         .default_value(DEFAULT_REGISTRY_TYPE)
                         .required(false)
-                        .help("Repository will be create automatically if not exists"),
+                        .help("Cloud provider"),
                 ),
         )
         .get_matches_from(&args[1..]);
