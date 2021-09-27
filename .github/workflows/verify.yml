@@ -4,11 +4,6 @@ on: [push]
 jobs:
   cowsay:
     runs-on: [self-hosted, windows]
-    container:
-      image: ghcr.io/legion-labs/build-env-win-rust:0.1.0
-      credentials:
-        username: ${{ github.repository_owner }}
-        password: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - uses: actions/checkout@v2
       - run: echo hello
