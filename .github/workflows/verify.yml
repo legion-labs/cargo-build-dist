@@ -4,10 +4,10 @@ on: [push]
 jobs:
   cowsay:
     runs-on: [self-hosted, windows]
-    container: npalm/cowsay
+    
     steps:
       - uses: actions/checkout@v2
-      - run: cowsay -f ghostbusters "Testing Who ya gonna call?"
+      - run: echo hello
       
   # lint:
   #   name: Running Linter
