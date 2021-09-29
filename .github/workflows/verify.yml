@@ -2,6 +2,11 @@ name: verify
 on: [push]
 
 jobs:
+  docker-version:
+    runs-on: [self-hosted, windows]
+    steps:
+      - uses: actions/checkout@v2
+      - run: docker version
   test:
     name: Running tests
     strategy:
