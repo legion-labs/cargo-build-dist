@@ -2,14 +2,8 @@ name: verify
 on: [push]
 
 jobs:
-  cowsay:
-    runs-on: [self-hosted, windows]
-    steps:
-      - uses: actions/checkout@v2
-      - run: echo hello
   test:
     name: Running tests
-    needs: lint
     strategy:
       matrix:
         include:
