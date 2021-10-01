@@ -2,17 +2,23 @@ name: verify
 on: [push]
 
 jobs:
-  docker-version:
-    runs-on: [self-hosted, windows, win-build-rust]
+  test-windows:
+    runs-on: [self-hosted, windows]
     steps:
       - uses: actions/checkout@v2
       - run: docker version
+  test-win-build-rust:
+    runs-on: [self-hosted, win-build-rust]
+    steps:
+      - uses: actions/checkout@v2
+      - run: docker version
+
   # test:
   #   name: Running tests
   #   strategy:
   #     matrix:
   #       include:
-  #         - os: [self-hosted, windows, win-build-rust]
+  #         - os: [self-hosted, win-build-rust]
   #           container: ghcr.io/legion-labs/build-env-win-rust:0.1.0
   #           workdir: C:\github\workspace
   #   runs-on: ${{ matrix.os }}
