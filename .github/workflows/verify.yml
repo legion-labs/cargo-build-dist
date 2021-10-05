@@ -2,12 +2,6 @@ name: verify
 on: [push]
 
 jobs:
-  test-win-build-rust:
-    runs-on: [self-hosted, winrust]
-    steps:
-      - uses: actions/checkout@v2
-      - run: docker version
-
   test:
     name: Running tests
     strategy:
