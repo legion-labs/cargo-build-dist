@@ -13,7 +13,10 @@ jobs:
     strategy:
       matrix:
         include:
-          - os: [self-hosted, winrust]
+          - os: [winrust, self-hosted]
+            container: ghcr.io/legion-labs/build-env-win-rust:0.1.0
+            workdir: C:\github\workspace
+          - os: [windows, c5.4xlarge, self-hosted]
             container: ghcr.io/legion-labs/build-env-win-rust:0.1.0
             workdir: C:\github\workspace
     runs-on: ${{ matrix.os }}
