@@ -36,7 +36,7 @@ jobs:
     name: Running build on windows
     runs-on: [self-hosted, windows, base, build]
     steps:
-      - uses: action/checkout@v2
+      - uses: actions/checkout@v2
 
       - name: Build test
         run: cargo build
