@@ -2,41 +2,11 @@ name: verify
 on: [push]
 
 jobs:
-  # test:
-  #   name: Running tests
-  #   strategy:
-  #     matrix:
-  #       include:
-  #         - os: [self-hosted, winrust]
-  #           container: ghcr.io/legion-labs/build-env-win-rust:0.1.0
-  #           workdir: C:\github\workspace
-  #         - os: [self-hosted, windows, c5.4xlarge]
-  #           workdir: C:\github\workspace
-  #   runs-on: ${{ matrix.os }}
-  #   steps:
-  #     - uses: actions/checkout@v2
-
-  #     - name: Login to GitHub Container Registry
-  #       uses: docker/login-action@v1
-  #       with:
-  #         registry: ghcr.io
-  #         username: ${{ github.repository_owner }}
-  #         password: ${{ secrets.GITHUB_TOKEN }}
-
-  #     - name: Build tests
-  #       run: >-
-  #         docker run
-  #         --name cargo_build
-  #         --rm
-  #         --workdir ${{ matrix.workdir }}
-  #         -v ${{ github.workspace }}:${{ matrix.workdir }}
-  #         ${{ matrix.container }}
-  #         echo Hello-you
-  test_windows_raw:
+  build_windows_raw:
     name: Running build on windows
     runs-on: [self-hosted, windows, base, build]
     steps:
       - uses: actions/checkout@v2
 
-      - name: Build test
+      - name: Build cargo-dockerize
         run: cargo build
