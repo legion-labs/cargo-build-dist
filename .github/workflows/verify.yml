@@ -10,3 +10,12 @@ jobs:
 
       - name: Build cargo-dockerize
         run: cargo build
+  
+  build_linux_raw:
+    name: Running build on Linux
+    runs-on: [self-hosted, linux, base, build]
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Build cargo-dockerize
+        run: cargo build
