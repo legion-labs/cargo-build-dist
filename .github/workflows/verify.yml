@@ -13,7 +13,7 @@ jobs:
       - name: Check whoami
         run: whoami
       - name: Load Source
-        run: source /etc/profile.d/*.sh
-        
+        run: source /etc/profile.d/build-rust.sh
+
       - name: Build cargo-dockerize
         run: cargo build
