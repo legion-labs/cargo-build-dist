@@ -9,7 +9,11 @@ jobs:
     steps:
       - uses: actions/checkout@v2
 
+
       - name: Check whoami
         run: whoami
+      - name: Load Source
+        run: source /etc/profile.d/*.sh
+        
       - name: Build cargo-dockerize
         run: cargo build
