@@ -9,5 +9,7 @@ jobs:
     steps:
       - uses: actions/checkout@v2
 
-      - name: Build cargo-dockerize
+      - name: Check whoami
         run: whoami
+      - name: Build cargo-dockerize
+        run: cargo build
