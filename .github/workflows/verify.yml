@@ -6,9 +6,8 @@ jobs:
     name: Run cargo version and cargo build on VM
     strategy: 
       matrix:
-        include:
-          - os: [self-hosted, windows, base, build]
-          - os: [self-hosted, linux, base, build]
+        os: [[self-hosted, windows, base, build], [self-hosted, linux, base, build]]
+
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v2
@@ -16,28 +15,4 @@ jobs:
         run: cargo --version
         
       - name: Cargo build 
-        run: cargo build
-  cargo-build-on-container-ubuntu:
-    name: Run cargo version and cargo build on linux Container
-    runs-on: [self-hosted, ubuntu]
-    container:
-      image: ghcr.io/legion-labs/build-env-linux-rust:0.1.0
-      credentials:
-        username: ${{ github.repository_owner }}
-        password: ${{ secrets.GITHUB_TOKEN }}
-    steps:
-      - uses: actions/checkout@v2
-      - name: Cargo Build
-        run: cargo build
-  cargo-build-on-container-windows:
-    name: Run cargo version and cargo build on Container
-    runs-on: [self-hosted, windows, c5.4xlarge]
-    container:
-      image: ghcr.io/legion-labs/build-env-win-rust:0.1.0
-      credentials:
-        username: ${{ github.repository_owner }}
-        password: ${{ secrets.GITHUB_TOKEN }}
-    steps:
-      - uses: actions/checkout@v2
-      - name: Cargo Build
         run: cargo build
