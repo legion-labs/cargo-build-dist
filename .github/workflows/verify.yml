@@ -33,7 +33,7 @@ jobs:
     name: Run cargo version and cargo build on Container
     runs-on: [self-hosted, windows, c5.4xlarge]
     container:
-      image: ghcr.io/legion-labs/build-env-linux-rust:0.1.0
+      image: ghcr.io/legion-labs/build-env-win-rust:0.1.0
       credentials:
         username: ${{ github.repository_owner }}
         password: ${{ secrets.GITHUB_TOKEN }}
