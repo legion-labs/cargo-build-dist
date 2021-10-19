@@ -7,7 +7,7 @@ jobs:
     strategy: 
       matrix:
         include:
-          - os: [self-hosted, ubuntu]
+          - os: [self-hosted, windows, base, build]
           - os: [self-hosted, linux, base, build]
     runs-on: ${{ matrix.os }}
     steps:
