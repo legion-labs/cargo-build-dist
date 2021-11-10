@@ -6,7 +6,7 @@ jobs:
     name: Run cargo version and cargo build on VM
     strategy: 
       matrix:
-        os: [[self-hosted, linux, base, build], [self-hosted, windows, base, build], [self-hosted, windows, gpu, build], [self-hosted, linux, gpu, build]]
+        os: [[self-hosted, linux, common, build], [self-hosted, windows, common, build], [self-hosted, windows, gpu, build], [self-hosted, linux, gpu, build]]
 
     runs-on: ${{ matrix.os }}
     steps:
