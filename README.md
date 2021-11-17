@@ -1,17 +1,25 @@
-# Cargo dockerize
+# Cargo build-dist
 
-Package Rust binary in Docker container
+Builds distributable artifacts from cargo crates in various forms.
 
 ## About
 
-`cargo-dockerize` is a tool used to build a docker image based on the Rust binary and it dependencies.
-The goal of this cargo sub command is to package a given crate binaries in a docker container, it takes into consideration the crate dependencies to define if the crate version should be bumped effectively, it is more useful in the context of a monorepo like the one Legion Labs maintains.
+`cargo build-dist` is a tool used to build various distributable artifacts to
+help the distribution of cargo-generated binaries.
+
+In its current form, it supports both build and uploading AWS Lambda packages as
+well as a subset of Docker images but will likely be extended to other targets
+in the future.
+
+In addition to building packages, `cargo build-dist` also considers crate
+dependencies to detect version bumps. It proves especially useful when working
+on mono-repos, like the one Legion Labs maintains.
 
 ## How to
 
 ```bash
 USAGE:
-    cargo-dockerize [FLAGS] [OPTIONS] [SUBCOMMAND]
+    cargo build-dist [FLAGS] [OPTIONS] [SUBCOMMAND]
 
 FLAGS:
     -d, --debug      Print debug information verbosely

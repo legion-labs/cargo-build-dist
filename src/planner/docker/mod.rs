@@ -1,6 +1,3 @@
-pub(crate) mod ecr;
-//use ecr::*;
-
 use crate::{Action, DockerPackage};
 use itertools::Itertools;
 use std::{path::PathBuf, process::Command, str};

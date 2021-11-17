@@ -2,13 +2,14 @@
 //! all relevant information for the rest of the commands, most notably
 //! the tree of workspace members containing a package.metadata.docker entry
 
+use anyhow::bail;
 use cargo_metadata::PackageId;
 use serde::Deserialize;
 use std::{
     cmp::Ordering,
     collections::BTreeSet,
     convert::{TryFrom, TryInto},
-    path::PathBuf,
+    path::{Path, PathBuf},
 };
 
 #[derive(Debug, Eq, Clone)]
@@ -174,10 +175,10 @@ pub struct Context {
 impl Context {
     /// Building a context regardless of the planning and execution
     pub fn build(
-        cargo: &str,
+        cargo: &Path,
         is_debug_mode: bool,
         manifest_path: Option<&str>,
-    ) -> Result<Self, String> {
+    ) -> anyhow::Result<Self> {
         let mut cmd = cargo_metadata::MetadataCommand::new();
         // even if MetadataCommand::new() can find cargo using the env var
         // we don't want to run that logic twice
@@ -188,17 +189,17 @@ impl Context {
         if let Some(manifest_path) = manifest_path {
             path.push(manifest_path);
             if !path.exists() {
-                return Err(format!(
+                bail!(
                     "failed to use the manifest file, {} doesn't exists",
                     &path.display()
-                ));
+                );
             }
             cmd.manifest_path(&path);
         }
 
         let metadata = cmd.exec();
         if let Err(e) = &metadata {
-            return Err(format!("failed to run cargo metadata {}", e));
+            bail!("failed to run cargo metadata {}", e);
         }
         let metadata = metadata.unwrap();
 
@@ -221,12 +222,12 @@ impl Context {
             }
             let docker_metadata = Metadata::deserialize(&package.metadata);
             if let Err(e) = &docker_metadata {
-                return Err(format!("failed to deserialize docker metadata {}", e));
+                bail!("failed to deserialize docker metadata {}", e);
             }
             let docker_settings: Result<Option<DockerSettings>, String> =
                 docker_metadata.unwrap().try_into();
             if let Err(e) = &docker_settings {
-                return Err(format!("failed to parse the docker metadata: {}", e));
+                bail!("failed to parse the docker metadata: {}", e);
             } else if let Ok(None) = &docker_settings {
                 continue;
             };
@@ -247,10 +248,10 @@ impl Context {
                 .collect();
 
             if binaries.is_empty() {
-                return Err(format!(
+                bail!(
                     "Docker metadata was found in {}, but no binaries were found in the crate",
                     package_id
-                ));
+                );
             }
 
             let docker_dir = PathBuf::from(&target_dir.join("docker").join(&package.name));
@@ -281,12 +282,12 @@ impl Context {
 fn get_transitive_dependencies(
     metadata: &cargo_metadata::Metadata,
     package_id: &PackageId,
-) -> Result<BTreeSet<Dependency>, String> {
+) -> anyhow::Result<BTreeSet<Dependency>> {
     if metadata.resolve.is_none() {
-        return Err(format!(
+        bail!(
             "resolve section not found in the workspace: {}",
             metadata.workspace_root
-        ));
+        );
     }
     // Can be unwrapped SAFELY after validating the not None resolve and being positively sure there is no error.
     let resolve = metadata.resolve.as_ref().unwrap();
@@ -294,10 +295,10 @@ fn get_transitive_dependencies(
     // accumulating all the resolved dependencies
     let node = resolve.nodes.iter().find(|node| node.id == *package_id);
     if node.is_none() {
-        return Err(format!(
+        bail!(
             "failed to find the resolved dependencies for: {}",
             package_id
-        ));
+        );
     }
     // node can be unwrap SAFELY since we have validate it is not
     let node = node.unwrap();
