@@ -4,6 +4,7 @@
 
 use anyhow::bail;
 use cargo_metadata::PackageId;
+use log::info;
 use serde::Deserialize;
 use std::{
     cmp::Ordering,
@@ -176,25 +177,16 @@ impl Context {
     /// Building a context regardless of the planning and execution
     pub fn build(
         cargo: &Path,
-        is_debug_mode: bool,
-        manifest_path: Option<&str>,
+        is_release_mode: bool,
+        manifest_path: Option<PathBuf>,
     ) -> anyhow::Result<Self> {
         let mut cmd = cargo_metadata::MetadataCommand::new();
         // even if MetadataCommand::new() can find cargo using the env var
         // we don't want to run that logic twice
         cmd.cargo_path(cargo);
 
-        // todo support --manifest-path
-        let mut path = PathBuf::new();
-        if let Some(manifest_path) = manifest_path {
-            path.push(manifest_path);
-            if !path.exists() {
-                bail!(
-                    "failed to use the manifest file, {} doesn't exists",
-                    &path.display()
-                );
-            }
-            cmd.manifest_path(&path);
+        if let Some(manifest_path) = &manifest_path {
+            cmd.manifest_path(manifest_path);
         }
 
         let metadata = cmd.exec();
@@ -203,17 +195,18 @@ impl Context {
         }
         let metadata = metadata.unwrap();
 
-        let target_dir =
-            PathBuf::from(metadata.target_directory.as_path().join(if is_debug_mode {
-                "debug"
-            } else {
-                "release"
-            }));
+        let target_dir = PathBuf::from(
+            metadata
+                .target_directory
+                .as_path()
+                .join(if is_release_mode { "release" } else { "debug" }),
+        );
 
         let mut docker_packages = vec![];
         // for each workspace member, we're going to build a DockerPackage
         // contains binaries
         for package_id in &metadata.workspace_members {
+            info!("Processing package {}", package_id);
             let package = &metadata[package_id];
 
             // Early out when we don't have metadata
@@ -271,10 +264,11 @@ impl Context {
                 },
             });
         }
+
         Ok(Self {
             target_dir,
             docker_packages,
-            manifest_path: Some(path),
+            manifest_path: manifest_path,
         })
     }
 }
