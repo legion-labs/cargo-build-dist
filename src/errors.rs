@@ -17,41 +17,38 @@ impl Error {
         }
     }
 
-    pub fn new_from_source(
-        description: impl Into<String>,
-        source: impl Into<anyhow::Error>,
-    ) -> Self {
-        Self {
-            description: description.into(),
-            explanation: None,
-            source: Some(source.into()),
-        }
+    pub fn with_source(mut self, source: impl Into<anyhow::Error>) -> Self {
+        self.source = Some(source.into());
+
+        self
     }
 
-    pub fn new_with_explanation(description: impl Into<String>, explanation: String) -> Self {
-        Self {
-            description: description.into(),
-            explanation: Some(explanation),
-            source: None,
-        }
+    pub fn with_explanation(mut self, explanation: impl Into<String>) -> Self {
+        self.explanation = Some(explanation.into());
+
+        self
     }
 
-    pub fn new_from_source_with_explanation(
-        description: impl Into<String>,
-        source: impl Into<anyhow::Error>,
-        explanation: String,
-    ) -> Self {
-        Self {
-            description: description.into(),
-            explanation: Some(explanation),
-            source: Some(source.into()),
-        }
+    pub fn description(&self) -> &str {
+        &self.description
+    }
+
+    pub fn source(&self) -> Option<&anyhow::Error> {
+        self.source.as_ref()
+    }
+
+    pub fn explanation(&self) -> Option<&str> {
+        self.explanation.as_deref()
     }
 }
 
 impl Display for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.description)?;
+
+        if let Some(source) = self.source.as_ref() {
+            write!(f, ": {}", source)?;
+        }
 
         if let Some(explanation) = &self.explanation {
             write!(f, "\n\n{}", explanation)?;

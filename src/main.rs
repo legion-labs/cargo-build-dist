@@ -1,7 +1,8 @@
 use cargo_build_dist::{bail, Context};
 use clap::{App, Arg};
 use log::debug;
-use std::{env, path::PathBuf};
+use std::{env, io::Write, path::PathBuf};
+use termcolor::{Color, ColorChoice, ColorSpec, StandardStream, WriteColor};
 
 use cargo_build_dist::{Error, Result};
 
@@ -15,15 +16,63 @@ fn get_cargo_path() -> Result<PathBuf> {
     match std::env::var("CARGO") {
         Ok(cargo) => Ok(PathBuf::from(&cargo)),
         Err(e) => {
-            eprintln!("Failed to find the CARGO environment variable, it is usually set by cargo.");
-            eprintln!("Make sure that cargo-dockerize has been run from cargo by having cargo-dockerize in your path");
-
-            Err(Error::new_from_source("`cargo` not found", e))
+            Err(
+                Error::new("`cargo` not found")
+                .with_source(e)
+                .with_explanation("The `CARGO` environment variable was not set: it is usually set by `cargo` itself.\nMake sure that `cargo build-dist` is run through `cargo` by putting its containing folder in your `PATH`."),
+            )
         }
     }
 }
 
-fn main() -> Result<()> {
+fn main() {
+    if let Err(e) = run() {
+        let mut stderr = StandardStream::stderr(ColorChoice::Always);
+        stderr
+            .set_color(
+                ColorSpec::new()
+                    .set_fg(Some(Color::Red))
+                    .set_intense(true)
+                    .set_bold(true),
+            )
+            .unwrap();
+        write!(&mut stderr, "Error").unwrap();
+        stderr.reset().unwrap();
+
+        writeln!(&mut stderr, ": {}", e.description()).unwrap();
+
+        if let Some(source) = e.source() {
+            stderr
+                .set_color(
+                    ColorSpec::new()
+                        .set_fg(Some(Color::White))
+                        .set_intense(true)
+                        .set_bold(true),
+                )
+                .unwrap();
+            write!(&mut stderr, "Caused by").unwrap();
+            stderr.reset().unwrap();
+            writeln!(&mut stderr, ": {}", source).unwrap();
+        }
+
+        if let Some(explanation) = e.explanation() {
+            stderr
+                .set_color(
+                    ColorSpec::new()
+                        .set_fg(Some(Color::Yellow))
+                        .set_bold(true)
+                        .set_intense(true),
+                )
+                .unwrap();
+            writeln!(&mut stderr, "\n{}", explanation).unwrap();
+            stderr.reset().unwrap();
+        }
+
+        std::process::exit(1);
+    }
+}
+
+fn run() -> Result<()> {
     let cargo = get_cargo_path()?;
 
     let matches = App::new("cargo build-dist")
@@ -117,7 +166,7 @@ fn main() -> Result<()> {
 
     // build the context
     let context = Context::build(&cargo, is_release, manifest_path)
-        .map_err(|e| Error::new_from_source("could not build context", e))?;
+        .map_err(|e| Error::new("could not build context").with_source(e))?;
 
     Ok(())
 }
