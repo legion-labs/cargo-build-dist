@@ -81,3 +81,6 @@ pub use planner::*;
 
 mod executor;
 pub use executor::*;
+
+mod errors;
+pub use errors::{Error, Result};

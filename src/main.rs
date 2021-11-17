@@ -1,34 +1,34 @@
-use anyhow::bail;
-use cargo_build_dist::Context;
-use clap::{App, AppSettings, Arg};
+use cargo_build_dist::{bail, Context};
+use clap::{App, Arg};
+use log::debug;
 use std::{env, path::PathBuf};
+
+use cargo_build_dist::{Error, Result};
 
 const ARG_DEBUG: &str = "debug";
 const ARG_MANIFEST: &str = "manifest-path";
 const ARG_VERBOSE: &str = "verbose";
 const ARG_DRY_RUN: &str = "dry-run";
 
-fn get_cargo_path() -> anyhow::Result<PathBuf> {
+fn get_cargo_path() -> Result<PathBuf> {
     match std::env::var("CARGO") {
         Ok(cargo) => Ok(PathBuf::from(&cargo)),
         Err(e) => {
             eprintln!("Failed to find the CARGO environment variable, it is usually set by cargo.");
             eprintln!("Make sure that cargo-dockerize has been run from cargo by having cargo-dockerize in your path");
 
-            bail!("`cargo` not found: {}", e);
+            Err(Error::new_from_source("`cargo` not found", e))
         }
     }
 }
 
-fn main() -> anyhow::Result<()> {
+fn main() -> Result<()> {
     let cargo = get_cargo_path()?;
 
-    let args: Vec<_> = env::args_os().collect();
     let matches = App::new("cargo build-dist")
         .version(env!("CARGO_PKG_VERSION"))
         .author("Legion Labs <devs@legionlabs.com>")
         .about("Build distributable artifacts from cargo crates.")
-        .setting(AppSettings::ArgRequiredElseHelp)
         .arg(
             Arg::with_name(ARG_DEBUG)
                 .short("d")
@@ -46,9 +46,9 @@ fn main() -> anyhow::Result<()> {
         .arg(
             Arg::with_name(ARG_DRY_RUN)
                 .short("n")
-                .long(ARG_VERBOSE)
+                .long(ARG_DRY_RUN)
                 .required(false)
-                .help("Print debug information verbosely"),
+                .help("Do not really push any artifacts"),
         )
         .arg(
             Arg::with_name(ARG_MANIFEST)
@@ -58,7 +58,15 @@ fn main() -> anyhow::Result<()> {
                 .required(false)
                 .help("Path to Cargo.toml"),
         )
-        .get_matches_from(&args[1..]);
+        .get_matches();
+
+    let mut log_level = log::LevelFilter::Info;
+
+    if matches.is_present(ARG_DEBUG) {
+        log_level = log::LevelFilter::Debug;
+    }
+
+    env_logger::Builder::new().filter_level(log_level).init();
 
     if let Some(_path) = matches.value_of(ARG_MANIFEST) {
         if _path.trim().is_empty() {
@@ -66,12 +74,15 @@ fn main() -> anyhow::Result<()> {
         }
     }
 
+    debug!("Using `cargo` at: {}", cargo.display());
+
     // build the context
     let context = Context::build(
         &cargo,
         matches.is_present(ARG_DEBUG),
         matches.value_of(ARG_MANIFEST),
-    )?;
+    )
+    .map_err(|e| Error::new_from_source("could not build context", e))?;
 
     Ok(())
 }
