@@ -1,6 +1,6 @@
 use std::{fmt, fs, path::PathBuf};
 
-use crate::{Action, DockerPackage};
+use crate::{metadata::DockerPackage, Action};
 
 pub struct CopyFile {
     source: PathBuf,

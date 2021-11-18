@@ -1,29 +1,16 @@
-use cargo_build_dist::{bail, Context};
+use cargo_build_dist::{bail, Context, Mode};
 use clap::{App, Arg};
 use log::debug;
 use std::{env, io::Write, path::PathBuf};
 use termcolor::{Color, ColorChoice, ColorSpec, StandardStream, WriteColor};
 
-use cargo_build_dist::{Error, Result};
+use cargo_build_dist::Result;
 
 const ARG_DEBUG: &str = "debug";
 const ARG_RELEASE: &str = "release";
 const ARG_MANIFEST_PATH: &str = "manifest-path";
 const ARG_VERBOSE: &str = "verbose";
 const ARG_DRY_RUN: &str = "dry-run";
-
-fn get_cargo_path() -> Result<PathBuf> {
-    match std::env::var("CARGO") {
-        Ok(cargo) => Ok(PathBuf::from(&cargo)),
-        Err(e) => {
-            Err(
-                Error::new("`cargo` not found")
-                .with_source(e)
-                .with_explanation("The `CARGO` environment variable was not set: it is usually set by `cargo` itself.\nMake sure that `cargo build-dist` is run through `cargo` by putting its containing folder in your `PATH`."),
-            )
-        }
-    }
-}
 
 fn main() {
     if let Err(e) = run() {
@@ -73,8 +60,6 @@ fn main() {
 }
 
 fn run() -> Result<()> {
-    let cargo = get_cargo_path()?;
-
     let matches = App::new("cargo build-dist")
         .version(env!("CARGO_PKG_VERSION"))
         .author("Legion Labs <devs@legionlabs.com>")
@@ -124,27 +109,32 @@ fn run() -> Result<()> {
 
     env_logger::Builder::new().filter_level(log_level).init();
 
+    debug!("Log level set to: {}", log_level);
+
     if let Some(_path) = matches.value_of(ARG_MANIFEST_PATH) {
         if _path.trim().is_empty() {
             bail!("`--{}` cannot be empty", ARG_MANIFEST_PATH);
         }
     }
 
-    debug!("Using `cargo` at: {}", cargo.display());
+    let mode = Mode::from_release_flag(matches.is_present(ARG_RELEASE));
 
-    let is_release = matches.is_present(ARG_RELEASE);
-
-    if is_release {
-        debug!(
-            "`--{}` was specified: using release build artifacts",
-            ARG_RELEASE
-        );
-    } else {
-        debug!(
-            "`--{}` was not specified: using debug build artifacts",
-            ARG_RELEASE
-        );
+    match mode {
+        Mode::Debug => {
+            debug!(
+                "`--{}` was not specified: using debug build artifacts",
+                ARG_RELEASE
+            );
+        }
+        Mode::Release => {
+            debug!(
+                "`--{}` was specified: using release build artifacts",
+                ARG_RELEASE
+            );
+        }
     }
+
+    let mut context_builder = Context::builder().with_mode(mode);
 
     let manifest_path = matches.value_of(ARG_MANIFEST_PATH).map(PathBuf::from);
 
@@ -155,6 +145,8 @@ fn run() -> Result<()> {
                 ARG_MANIFEST_PATH,
                 manifest_path.display()
             );
+
+            context_builder = context_builder.with_manifest_path(manifest_path);
         }
         None => {
             debug!(
@@ -164,9 +156,7 @@ fn run() -> Result<()> {
         }
     }
 
-    // build the context
-    let context = Context::build(&cargo, is_release, manifest_path)
-        .map_err(|e| Error::new("could not build context").with_source(e))?;
+    let context = context_builder.build()?;
 
     Ok(())
 }

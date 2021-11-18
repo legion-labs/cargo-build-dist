@@ -1,4 +1,4 @@
-use crate::{Action, DockerPackage};
+use crate::{metadata::DockerPackage, Action};
 use itertools::Itertools;
 use std::{path::PathBuf, process::Command, str};
 
