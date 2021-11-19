@@ -28,6 +28,8 @@ impl DockerMetadata {
         package: &cargo_metadata::Package,
         dependencies: Dependencies,
     ) -> Result<DockerPackage> {
+        debug!("Package has a Docker target distribution.");
+
         let docker_dir = target_dir.join("docker").join(&package.name);
 
         let binaries: Vec<_> = package
@@ -62,6 +64,7 @@ impl DockerMetadata {
                 binary_dir: target_dir.clone(),
                 docker_dir,
             },
+            package: package.clone(),
         })
     }
 }

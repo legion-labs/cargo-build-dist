@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::{fmt::Display, path::PathBuf};
 
 use serde::Deserialize;
 
@@ -15,11 +15,18 @@ pub struct DockerPackage {
     pub metadata: DockerMetadata,
     pub dependencies: Dependencies,
     pub target_dir: TargetDir,
+    pub package: cargo_metadata::Package,
+}
+
+impl Display for DockerPackage {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Docker({} {})", self.package.name, self.package.version)
+    }
 }
 
 impl DistTarget for DockerPackage {
     fn package(&self) -> &cargo_metadata::Package {
-        todo!()
+        &self.package
     }
 }
 

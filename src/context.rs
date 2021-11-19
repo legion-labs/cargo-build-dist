@@ -46,6 +46,8 @@ pub struct ContextBuilder {
 
 impl ContextBuilder {
     pub fn build(&self) -> Result<Context> {
+        debug!("Building context.");
+
         let metadata = self.get_metadata()?;
         let target_dir = self.get_target_dir(&metadata);
 
@@ -143,7 +145,7 @@ impl ContextBuilder {
             .map(|(package_id, package_metadata)| {
                 let package = &metadata[&package_id];
 
-                step!("Resolving", "{} {}", package.name, package.version);
+                debug!("Resolving package {} {}", package.name, package.version);
 
                 let dependencies = self.get_dependencies(&metadata, &package.id)?;
 
@@ -219,7 +221,7 @@ impl ContextBuilder {
                     }
                 };
 
-                step!("Scanning", "{} {}", package.name, package.version);
+                debug!("Considering package {} {}", package.name, package.version);
 
                 let metadata = match Metadata::deserialize(metadata) {
                     Ok(metadata) => metadata,
@@ -291,6 +293,23 @@ impl Context {
     }
 
     fn new(dist_targets: Vec<Box<dyn DistTarget>>) -> Self {
+        match dist_targets.len() {
+            0 => debug!("Context built successfully but has no distribution targets"),
+            1 => debug!(
+                "Context built successfully with one distribution target: {}",
+                dist_targets[0],
+            ),
+            x => debug!(
+                "Context built successfully with {} distribution targets: {}",
+                x,
+                dist_targets
+                    .iter()
+                    .map(|d| d.to_string())
+                    .collect::<Vec<String>>()
+                    .join(", "),
+            ),
+        };
+
         Self { dist_targets }
     }
 }
