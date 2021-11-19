@@ -4,7 +4,7 @@
 use cargo_metadata::PackageId;
 use log::debug;
 use serde::Deserialize;
-use std::{fmt::Display, path::PathBuf};
+use std::{cmp::Ordering, collections::BTreeSet, fmt::Display, path::PathBuf};
 
 use crate::{dist_target::DistTarget, metadata::Metadata, step, Error, Result};
 
@@ -69,6 +69,69 @@ impl ContextBuilder {
         self
     }
 
+    fn get_dependencies(
+        &self,
+        metadata: &cargo_metadata::Metadata,
+        package_id: &PackageId,
+    ) -> Result<Dependencies> {
+        let resolve = match &metadata.resolve {
+            Some(resolve) => resolve,
+            None => {
+                return Err(Error::new("`resolve` section not found in the workspace")
+                    .with_explanation(format!(
+                        "The `resolve` section is missing for workspace {}\
+                        which prevents the resolution of dependencies.",
+                        metadata.workspace_root
+                    )))
+            }
+        };
+
+        Ok(self
+            .get_dependencies_from_resolve(resolve, package_id)?
+            .map(|package_id| {
+                let package = &metadata[&package_id];
+                Dependency {
+                    name: package.name.clone(),
+                    version: package.version.to_string(),
+                }
+            })
+            .collect())
+    }
+
+    fn get_dependencies_from_resolve<'a>(
+        &self,
+        resolve: &'a cargo_metadata::Resolve,
+        package_id: &'a PackageId,
+    ) -> Result<impl Iterator<Item = &'a PackageId>> {
+        let node = resolve
+            .nodes
+            .iter()
+            .find(|node| node.id == *package_id)
+            .ok_or_else(|| {
+                Error::new("could not resolve dependencies").with_explanation(format!(
+                    "Unable to resolve dependencies for package {}.",
+                    package_id
+                ))
+            })?;
+
+        let deps: Result<Vec<&PackageId>> = node
+            .dependencies
+            .iter()
+            .map(
+                |package_id| match self.get_dependencies_from_resolve(resolve, package_id) {
+                    Ok(deps) => Ok(deps),
+                    Err(err) => Err(Error::new("transitive dependency failure").with_source(err)),
+                },
+            )
+            .flat_map(|v| match v {
+                Ok(v) => v.map(Ok).collect(),
+                Err(e) => vec![Err(e)],
+            })
+            .collect();
+
+        Ok(std::iter::once(package_id).chain(deps?.into_iter()))
+    }
+
     fn resolve_dist_targets(
         &self,
         metadata: cargo_metadata::Metadata,
@@ -82,10 +145,30 @@ impl ContextBuilder {
 
                 step!("Resolving", "{} {}", package.name, package.version);
 
+                let dependencies = self.get_dependencies(&metadata, &package.id)?;
+
+                match dependencies.len() {
+                    0 => debug!("Package has no dependencies"),
+                    1 => debug!("Package has one dependency"),
+                    x => debug!(
+                        "Package has {} dependencies: {}",
+                        x,
+                        dependencies
+                            .iter()
+                            .map(Dependency::to_string)
+                            .collect::<Vec<String>>()
+                            .join(", "),
+                    ),
+                };
+
                 let mut dist_targets: Vec<Box<dyn DistTarget>> = vec![];
 
                 if let Some(docker) = package_metadata.docker {
-                    dist_targets.push(Box::new(docker.into_dist_target(&target_dir, &package)?));
+                    dist_targets.push(Box::new(docker.into_dist_target(
+                        &target_dir,
+                        &package,
+                        dependencies,
+                    )?));
                 }
 
                 Ok(dist_targets)
@@ -209,5 +292,39 @@ impl Context {
 
     fn new(dist_targets: Vec<Box<dyn DistTarget>>) -> Self {
         Self { dist_targets }
+    }
+}
+
+pub type Dependencies = BTreeSet<Dependency>;
+
+#[derive(Debug, Eq, Clone)]
+pub struct Dependency {
+    pub name: String,
+    pub version: String,
+}
+
+impl Display for Dependency {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{} {}", self.name, self.version)
+    }
+}
+
+impl Ord for Dependency {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.name
+            .cmp(&other.name)
+            .then(self.version.cmp(&other.version))
+    }
+}
+
+impl PartialOrd for Dependency {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl PartialEq for Dependency {
+    fn eq(&self, other: &Self) -> bool {
+        self.name == other.name && self.version == other.version
     }
 }

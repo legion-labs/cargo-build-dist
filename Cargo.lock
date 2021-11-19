@@ -505,6 +505,9 @@ dependencies = [
 [[package]]
 name = "docker"
 version = "0.1.0"
+dependencies = [
+ "anyhow",
+]
 
 [[package]]
 name = "either"

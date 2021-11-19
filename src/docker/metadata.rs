@@ -1,10 +1,11 @@
-use std::{collections::BTreeSet, path::PathBuf};
+use std::path::PathBuf;
 
+use log::debug;
 use serde::Deserialize;
 
 use crate::{
-    docker::{package::Dependency, DockerPackage, TargetDir},
-    Error, Result,
+    docker::{DockerPackage, TargetDir},
+    Dependencies, Error, Result,
 };
 
 #[derive(Debug, Clone, Deserialize)]
@@ -25,6 +26,7 @@ impl DockerMetadata {
         self,
         target_dir: &PathBuf,
         package: &cargo_metadata::Package,
+        dependencies: Dependencies,
     ) -> Result<DockerPackage> {
         let docker_dir = target_dir.join("docker").join(&package.name);
 
@@ -44,8 +46,10 @@ impl DockerMetadata {
             return Err(Error::new("package contain no binaries").with_explanation(format!("Building a Docker image requires at least one binary but the package {} does not contain any.", package.id)));
         }
 
-        //let dependencies = get_transitive_dependencies(&metadata, package_id)?;
-        let dependencies = BTreeSet::<Dependency>::new();
+        debug!(
+            "Package contains the following binaries: {}",
+            binaries.join(", ")
+        );
 
         Ok(DockerPackage {
             name: package.name.clone(),
@@ -73,41 +77,3 @@ pub struct CopyCommand {
     pub source: String,
     pub destination: String,
 }
-
-//fn get_transitive_dependencies(
-//    metadata: &cargo_metadata::Metadata,
-//    package_id: &PackageId,
-//) -> Result<BTreeSet<Dependency>> {
-//    if metadata.resolve.is_none() {
-//        bail!(
-//            "resolve section not found in the workspace: {}",
-//            metadata.workspace_root
-//        );
-//    }
-//    // Can be unwrapped SAFELY after validating the not None resolve and being positively sure there is no error.
-//    let resolve = metadata.resolve.as_ref().unwrap();
-//
-//    // accumulating all the resolved dependencies
-//    let node = resolve.nodes.iter().find(|node| node.id == *package_id);
-//    if node.is_none() {
-//        bail!(
-//            "failed to find the resolved dependencies for: {}",
-//            package_id
-//        );
-//    }
-//    // node can be unwrap SAFELY since we have validate it is not
-//    let node = node.unwrap();
-//    let mut deps = BTreeSet::new();
-//    for dep_id in &node.dependencies {
-//        let dep = &metadata[dep_id];
-//
-//        deps.insert(Dependency {
-//            name: dep.name.clone(),
-//            version: dep.version.to_string(),
-//        });
-//        deps.append(&mut get_transitive_dependencies(metadata, dep_id)?);
-//    }
-//
-//    Ok(deps)
-//}
-//
