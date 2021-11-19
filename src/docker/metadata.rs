@@ -1,18 +1,15 @@
-use std::path::PathBuf;
+use std::{fmt::Display, path::PathBuf};
 
 use log::debug;
 use serde::Deserialize;
 
-use crate::{
-    docker::{DockerPackage, TargetDir},
-    Dependencies, Error, Result,
-};
+use crate::{docker::DockerPackage, Dependencies, Error, Result};
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct DockerMetadata {
     pub deps_hash: Option<String>,
     pub base: String,
-    pub copy_dest_dir: String,
+    pub target_bin_dir: String,
     pub env: Option<Vec<EnvironmentVariable>>,
     pub run: Option<Vec<String>>,
     pub expose: Option<Vec<i32>>,
@@ -30,7 +27,7 @@ impl DockerMetadata {
     ) -> Result<DockerPackage> {
         debug!("Package has a Docker target distribution.");
 
-        let docker_dir = target_dir.join("docker").join(&package.name);
+        let docker_root = target_dir.join("docker").join(&package.name);
 
         let binaries: Vec<_> = package
             .targets
@@ -60,12 +57,27 @@ impl DockerMetadata {
             binaries,
             metadata: self,
             dependencies,
-            target_dir: TargetDir {
-                binary_dir: target_dir.clone(),
-                docker_dir,
-            },
+            target_dir: target_dir.clone(),
+            docker_root,
             package: package.clone(),
         })
+    }
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct CopyCommand {
+    pub source: PathBuf,
+    pub destination: PathBuf,
+}
+
+impl Display for CopyCommand {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "COPY '{}' '{}'",
+            self.source.display(),
+            self.destination.display()
+        )
     }
 }
 
@@ -73,10 +85,4 @@ impl DockerMetadata {
 pub struct EnvironmentVariable {
     pub name: String,
     pub value: String,
-}
-
-#[derive(Debug, Clone, Deserialize)]
-pub struct CopyCommand {
-    pub source: String,
-    pub destination: String,
 }

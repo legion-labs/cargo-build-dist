@@ -25,9 +25,9 @@ pub fn print_step(action: &str, description: impl Display) {
 #[macro_export]
 macro_rules! step {
     ($action:expr, $description:expr $(,)?) => {
-        $crate::term::print_step($action, $description);
+        $crate::term::print_step($action, $description)
     };
     ($action:expr, $fmt:expr, $($arg:tt)*) => {
-        step!($action, format!($fmt, $($arg)*));
+        step!($action, format!($fmt, $($arg)*))
     };
 }

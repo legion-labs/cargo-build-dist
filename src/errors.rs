@@ -17,6 +17,10 @@ impl Error {
         }
     }
 
+    pub fn from_source(source: impl Into<anyhow::Error>) -> Self {
+        Self::new("").with_source(source)
+    }
+
     pub fn with_source(mut self, source: impl Into<anyhow::Error>) -> Self {
         self.source = Some(source.into());
 
@@ -39,6 +43,39 @@ impl Error {
 
     pub fn explanation(&self) -> Option<&str> {
         self.explanation.as_deref()
+    }
+
+    pub fn with_context(mut self, description: impl Into<String>) -> Self {
+        if self.description.is_empty() {
+            self.description = description.into();
+
+            self
+        } else {
+            Self::new(description).with_source(self)
+        }
+    }
+}
+
+pub trait ErrorContext {
+    fn with_context(self, description: impl Into<String>) -> Self;
+    fn with_full_context(
+        self,
+        description: impl Into<String>,
+        explanation: impl Into<String>,
+    ) -> Self;
+}
+
+impl<T> ErrorContext for Result<T> {
+    fn with_context(self, description: impl Into<String>) -> Self {
+        self.map_err(|e| e.with_context(description))
+    }
+
+    fn with_full_context(
+        self,
+        description: impl Into<String>,
+        explanation: impl Into<String>,
+    ) -> Self {
+        self.map_err(|e| e.with_context(description).with_explanation(explanation))
     }
 }
 

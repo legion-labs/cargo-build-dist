@@ -1,4 +1,4 @@
-use cargo_build_dist::{bail, Context, Mode};
+use cargo_build_dist::{bail, BuildOptions, Context, Mode};
 use clap::{App, Arg};
 use log::debug;
 use std::{env, io::Write, path::PathBuf};
@@ -158,5 +158,10 @@ fn run() -> Result<()> {
 
     let context = context_builder.build()?;
 
-    Ok(())
+    let options = BuildOptions {
+        dry_run: matches.is_present(ARG_DRY_RUN),
+        verbose: matches.is_present(ARG_VERBOSE),
+    };
+
+    context.build(options)
 }

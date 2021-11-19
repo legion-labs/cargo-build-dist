@@ -19,7 +19,8 @@ env = [
     { name = "APP_USER", value = "appuser" },
     { name = "APP", value = "/usr/src/app" },
 ]
-copy_dest_dir = "/usr/src/app/"
+
+target_bin_dir = "/usr/src/app/"
 
 extra_copies = [
     { source = "src/test/test-file", destination = "/usr/src/app/" },

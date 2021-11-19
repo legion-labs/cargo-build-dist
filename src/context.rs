@@ -6,7 +6,11 @@ use log::debug;
 use serde::Deserialize;
 use std::{cmp::Ordering, collections::BTreeSet, fmt::Display, path::PathBuf};
 
-use crate::{dist_target::DistTarget, metadata::Metadata, step, Error, Result};
+use crate::{
+    dist_target::{BuildOptions, DistTarget},
+    metadata::Metadata,
+    step, Error, Result,
+};
 
 pub enum Mode {
     Debug,
@@ -311,6 +315,21 @@ impl Context {
         };
 
         Self { dist_targets }
+    }
+
+    pub fn build(&self, options: BuildOptions) -> Result<()> {
+        match self.dist_targets.len() {
+            0 => {}
+            1 => step!("Processing", "one distribution target",),
+            x => step!("Processing", "{} distribution targets", x),
+        };
+
+        for dist_target in &self.dist_targets {
+            step!("Building", dist_target.to_string());
+            dist_target.build(&options)?;
+        }
+
+        Ok(())
     }
 }
 

@@ -64,6 +64,7 @@ mod metadata;
 mod term;
 
 pub use context::*;
-pub use errors::{Error, Result};
+pub use dist_target::BuildOptions;
+pub use errors::{Error, ErrorContext, Result};
 //pub use executor::*;
 //pub use planner::*;
