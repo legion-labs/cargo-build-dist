@@ -59,13 +59,9 @@ mod dist_target;
 mod docker;
 mod errors;
 mod metadata;
-//mod executor;
-//mod planner;
 mod term;
 
 pub use context::*;
 pub use dist_target::BuildOptions;
 pub use errors::{Error, ErrorContext, Result};
 pub use term::{ACTION_STEP_COLOR, IGNORE_STEP_COLOR};
-//pub use executor::*;
-//pub use planner::*;
