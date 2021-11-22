@@ -66,5 +66,6 @@ mod term;
 pub use context::*;
 pub use dist_target::BuildOptions;
 pub use errors::{Error, ErrorContext, Result};
+pub use term::{ACTION_STEP_COLOR, IGNORE_STEP_COLOR};
 //pub use executor::*;
 //pub use planner::*;

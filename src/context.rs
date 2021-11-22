@@ -7,9 +7,11 @@ use serde::Deserialize;
 use std::{cmp::Ordering, collections::BTreeSet, fmt::Display, path::PathBuf};
 
 use crate::{
+    action_step,
     dist_target::{BuildOptions, DistTarget},
+    ignore_step,
     metadata::Metadata,
-    step, Error, Result,
+    Error, Result,
 };
 
 pub enum Mode {
@@ -170,11 +172,20 @@ impl ContextBuilder {
                 let mut dist_targets: Vec<Box<dyn DistTarget>> = vec![];
 
                 if let Some(docker) = package_metadata.docker {
-                    dist_targets.push(Box::new(docker.into_dist_target(
-                        &target_dir,
-                        &package,
-                        dependencies,
-                    )?));
+                    if cfg!(windows) {
+                        ignore_step!(
+                            "Ignoring",
+                            "distribution target `Docker` in package `{} {}` as it is not supported on Windows.",
+                            package.name,
+                            package.version,
+                        );
+                    } else {
+                        dist_targets.push(Box::new(docker.into_dist_target(
+                            &target_dir,
+                            &package,
+                            dependencies,
+                        )?));
+                    }
                 }
 
                 Ok(dist_targets)
@@ -320,12 +331,12 @@ impl Context {
     pub fn build(&self, options: BuildOptions) -> Result<()> {
         match self.dist_targets.len() {
             0 => {}
-            1 => step!("Processing", "one distribution target",),
-            x => step!("Processing", "{} distribution targets", x),
+            1 => action_step!("Processing", "one distribution target",),
+            x => action_step!("Processing", "{} distribution targets", x),
         };
 
         for dist_target in &self.dist_targets {
-            step!("Building", dist_target.to_string());
+            action_step!("Building", dist_target.to_string());
             dist_target.build(&options)?;
         }
 
