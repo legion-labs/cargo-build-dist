@@ -3,6 +3,7 @@
 
 use cargo_metadata::PackageId;
 use log::debug;
+use sha2::{Digest, Sha256};
 use std::{cmp::Ordering, collections::BTreeSet, fmt::Display, path::PathBuf, time::Instant};
 
 use crate::{
@@ -152,21 +153,44 @@ impl ContextBuilder {
 
                 debug!("Resolving package {} {}", package.name, package.version);
 
-                let dependencies = self.get_dependencies(&metadata, &package.id)?;
+                if let Some(deps_hash) = package_metadata.deps_hash {
+                    debug!("Package has a dependency hash specified: making sure it is up-to-date.");
 
-                match dependencies.len() {
-                    0 => debug!("Package has no dependencies"),
-                    1 => debug!("Package has one dependency"),
-                    x => debug!(
-                        "Package has {} dependencies: {}",
-                        x,
-                        dependencies
-                            .iter()
-                            .map(Dependency::to_string)
-                            .collect::<Vec<String>>()
-                            .join(", "),
-                    ),
-                };
+                    let dependencies = self.get_dependencies(&metadata, &package.id)?;
+
+                    match dependencies.len() {
+                        0 => debug!("Package has no dependencies"),
+                        1 => debug!("Package has one dependency"),
+                        x => debug!(
+                            "Package has {} dependencies: {}",
+                            x,
+                            dependencies
+                                .iter()
+                                .map(Dependency::to_string)
+                                .collect::<Vec<String>>()
+                                .join(", "),
+                        ),
+                    };
+
+                    let current_deps_hash = get_dependencies_hash(&dependencies);
+
+                    if current_deps_hash != deps_hash {
+                        return Err(
+                            Error::new("dependencies hash does not match")
+                            .with_explanation(format!("The specified dependency hash does not match the actual computed version.\n\n\
+                            This may indicate that some dependencies have changed and may require a major/minor version bump. \n\n\
+                            Please validate this and update the dependencies hash to confirm the new dependencies."))
+                            .with_output(format!(
+                                "Expected: {}\n  \
+                                Actual: {}",
+                                deps_hash,
+                                current_deps_hash
+                            ))
+                        );
+                    }
+
+                    debug!("Package dependency hash is up-to-date. Moving on.");
+                }
 
                 let mut dist_targets: Vec<Box<dyn DistTarget>> = vec![];
 
@@ -182,7 +206,6 @@ impl ContextBuilder {
                         dist_targets.push(Box::new(docker.into_dist_target(
                             &target_dir,
                             &package,
-                            dependencies,
                         )?));
                     }
                 }
@@ -384,4 +407,16 @@ impl PartialEq for Dependency {
     fn eq(&self, other: &Self) -> bool {
         self.name == other.name && self.version == other.version
     }
+}
+
+fn get_dependencies_hash(dependencies: &Dependencies) -> String {
+    let mut deps_hasher = Sha256::new();
+
+    for dep in dependencies {
+        deps_hasher.update(&dep.name);
+        deps_hasher.update(" ");
+        deps_hasher.update(&dep.version);
+    }
+
+    format!("{:x}", deps_hasher.finalize())
 }

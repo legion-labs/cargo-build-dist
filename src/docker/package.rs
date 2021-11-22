@@ -6,7 +6,7 @@ use std::{
 
 use log::debug;
 
-use crate::{dist_target::DistTarget, Dependencies, Error, ErrorContext, Result};
+use crate::{dist_target::DistTarget, Error, ErrorContext, Result};
 
 use super::DockerMetadata;
 
@@ -17,7 +17,6 @@ pub struct DockerPackage {
     pub toml_path: PathBuf,
     pub binaries: Vec<String>,
     pub metadata: DockerMetadata,
-    pub dependencies: Dependencies,
     pub target_dir: PathBuf,
     pub docker_root: PathBuf,
     pub package: cargo_metadata::Package,
@@ -129,7 +128,7 @@ impl DockerPackage {
                 .with_full_context(
                     "failed to copy binary",
                     format!(
-                        "The binary `{}` could not be copied to the Docker image.",
+                        "The binary `{}` could not be copied to the Docker image. Has this target been built before attempting its packaging?",
                         binary
                     ),
                 )?;

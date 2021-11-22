@@ -9,10 +9,12 @@ publish = false
 [dependencies]
 anyhow = "1"
 
+[package.metadata.build-dist]
+deps_hash = "3f63e6a42f1da09be6fbd3338dcd01fffedc3f3e5f2070fade8743e880b97b09"
+
 [package.metadata.build-dist.docker]
 base = "ubuntu:20.04"
 
-deps_hash = "f9d194bf3f00f0b1bbd71a6c4d4853c67229a115460aea78cc7f0dcbb80abcd2"
 
 env = [
     { name = "TZ", value = "Etc/UTC" },

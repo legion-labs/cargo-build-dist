@@ -49,12 +49,3 @@ pub fn check_build_dependencies(context: &super::Context) -> Result<(), String> 
     //}
     Ok(())
 }
-
-fn get_calculate_dependencies_hash(dependencies: &BTreeSet<Dependency>) -> String {
-    let mut deps_hasher = Sha256::new();
-    for dep in dependencies {
-        deps_hasher.update(&dep.name);
-        deps_hasher.update(&dep.version);
-    }
-    format!("{:x}", deps_hasher.finalize())
-}

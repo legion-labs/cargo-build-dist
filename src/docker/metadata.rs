@@ -3,12 +3,11 @@ use std::{fmt::Display, path::PathBuf};
 use log::debug;
 use serde::Deserialize;
 
-use crate::{docker::DockerPackage, Dependencies, Error, Result};
+use crate::{docker::DockerPackage, Error, Result};
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct DockerMetadata {
-    pub deps_hash: Option<String>,
     pub base: String,
     pub target_bin_dir: PathBuf,
     pub env: Option<Vec<EnvironmentVariable>>,
@@ -24,7 +23,6 @@ impl DockerMetadata {
         self,
         target_dir: &PathBuf,
         package: &cargo_metadata::Package,
-        dependencies: Dependencies,
     ) -> Result<DockerPackage> {
         debug!("Package has a Docker target distribution.");
 
@@ -57,7 +55,6 @@ impl DockerMetadata {
             toml_path: package.manifest_path.clone().into(),
             binaries,
             metadata: self,
-            dependencies,
             target_dir: target_dir.clone(),
             docker_root,
             package: package.clone(),
