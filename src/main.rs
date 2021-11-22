@@ -55,6 +55,20 @@ fn main() {
             stderr.reset().unwrap();
         }
 
+        if let Some(output) = e.output() {
+            stderr
+                .set_color(
+                    ColorSpec::new()
+                        .set_fg(Some(Color::Blue))
+                        .set_bold(true)
+                        .set_intense(true),
+                )
+                .unwrap();
+            writeln!(&mut stderr, "\nOutput follows:").unwrap();
+            stderr.reset().unwrap();
+            writeln!(&mut stderr, "{}", output).unwrap();
+        }
+
         std::process::exit(1);
     }
 }

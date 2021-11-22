@@ -3,7 +3,7 @@
 
 use cargo_metadata::PackageId;
 use log::debug;
-use std::{cmp::Ordering, collections::BTreeSet, fmt::Display, path::PathBuf};
+use std::{cmp::Ordering, collections::BTreeSet, fmt::Display, path::PathBuf, time::Instant};
 
 use crate::{
     action_step,
@@ -336,7 +336,16 @@ impl Context {
 
         for dist_target in &self.dist_targets {
             action_step!("Building", dist_target.to_string());
+            let now = Instant::now();
+
             dist_target.build(&options)?;
+
+            action_step!(
+                "Finished",
+                "{} in {:.2}s",
+                dist_target,
+                now.elapsed().as_secs_f64()
+            );
         }
 
         Ok(())

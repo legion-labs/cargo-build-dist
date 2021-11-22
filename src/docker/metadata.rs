@@ -10,11 +10,11 @@ use crate::{docker::DockerPackage, Dependencies, Error, Result};
 pub struct DockerMetadata {
     pub deps_hash: Option<String>,
     pub base: String,
-    pub target_bin_dir: String,
+    pub target_bin_dir: PathBuf,
     pub env: Option<Vec<EnvironmentVariable>>,
     pub run: Option<Vec<String>>,
     pub expose: Option<Vec<i32>>,
-    pub workdir: Option<String>,
+    pub workdir: Option<PathBuf>,
     pub extra_copies: Option<Vec<CopyCommand>>,
     pub extra_commands: Option<Vec<String>>,
 }
@@ -54,7 +54,7 @@ impl DockerMetadata {
         Ok(DockerPackage {
             name: package.name.clone(),
             version: package.version.to_string(),
-            toml_path: package.manifest_path.to_string(),
+            toml_path: package.manifest_path.clone().into(),
             binaries,
             metadata: self,
             dependencies,
@@ -69,6 +69,24 @@ impl DockerMetadata {
 pub struct CopyCommand {
     pub source: PathBuf,
     pub destination: PathBuf,
+}
+
+impl CopyCommand {
+    pub fn relative_source(&self) -> Result<PathBuf> {
+        let file_name = self.source.file_name().ok_or_else(|| {
+            Error::new("copy command has no source file name").with_explanation(format!(
+                "The source of the copy command is not a valid path: {}",
+                self.source.display()
+            ))
+        })?;
+
+        let destination = self
+            .destination
+            .strip_prefix("/")
+            .unwrap_or(&self.destination);
+
+        Ok(destination.join(file_name))
+    }
 }
 
 impl Display for CopyCommand {

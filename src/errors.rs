@@ -6,6 +6,7 @@ pub struct Error {
     explanation: Option<String>,
     #[source]
     source: Option<anyhow::Error>,
+    output: Option<String>,
 }
 
 impl Error {
@@ -14,6 +15,7 @@ impl Error {
             description: description.into(),
             explanation: None,
             source: None,
+            output: None,
         }
     }
 
@@ -33,6 +35,12 @@ impl Error {
         self
     }
 
+    pub fn with_output(mut self, output: impl Into<String>) -> Self {
+        self.output = Some(output.into());
+
+        self
+    }
+
     pub fn description(&self) -> &str {
         &self.description
     }
@@ -43,6 +51,10 @@ impl Error {
 
     pub fn explanation(&self) -> Option<&str> {
         self.explanation.as_deref()
+    }
+
+    pub fn output(&self) -> Option<&str> {
+        self.output.as_deref()
     }
 
     pub fn with_context(mut self, description: impl Into<String>) -> Self {

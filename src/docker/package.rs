@@ -1,4 +1,8 @@
-use std::{fmt::Display, path::PathBuf, process::Command};
+use std::{
+    fmt::Display,
+    path::{Path, PathBuf},
+    process::Command,
+};
 
 use log::debug;
 
@@ -10,7 +14,7 @@ use super::DockerMetadata;
 pub struct DockerPackage {
     pub name: String,
     pub version: String,
-    pub toml_path: String,
+    pub toml_path: PathBuf,
     pub binaries: Vec<String>,
     pub metadata: DockerMetadata,
     pub dependencies: Dependencies,
@@ -35,12 +39,12 @@ impl DistTarget for DockerPackage {
         self.copy_binaries()?;
         self.copy_extra_files()?;
 
-        self.build_dockerfile(dockerfile)
+        self.build_dockerfile(dockerfile, options.verbose)
     }
 }
 
 impl DockerPackage {
-    fn build_dockerfile(&self, docker_file: PathBuf) -> Result<()> {
+    fn build_dockerfile(&self, docker_file: PathBuf, verbose: bool) -> Result<()> {
         let mut cmd = Command::new("docker");
         let docker_image_name = self.docker_image_name();
 
@@ -58,10 +62,32 @@ impl DockerPackage {
 
         cmd.args(args);
 
-        cmd.status().map_err(Error::from_source).with_full_context(
-            "failed to build Docker image",
-            "The build of the Docker image failed which could indicate a configuration problem.",
-        )?;
+        // Disable the annoying `Use 'docker scan' to run Snyk tests` message.
+        cmd.env("DOCKER_SCAN_SUGGEST", "false");
+
+        if verbose {
+            let status = cmd.status().map_err(Error::from_source).with_full_context(
+                "failed to build Docker image",
+                "The build of the Docker image failed which could indicate a configuration problem.",
+            )?;
+
+            if !status.success() {
+                return Err(Error::new("failed to build Docker image").with_explanation(
+                    "The build of the Docker image failed. Check the logs above to determine the cause.",
+                ));
+            }
+        } else {
+            let output = cmd.output().map_err(Error::from_source).with_full_context(
+                "failed to build Docker image",
+                "The build of the Docker image failed which could indicate a configuration problem. You may want to re-run the command with `--verbose` to get more information.",
+            )?;
+
+            if !output.status.success() {
+                return Err(Error::new("failed to build Docker image")
+                    .with_explanation("The build of the Docker image failed. Check the logs below to determine the cause.")
+                    .with_output(String::from_utf8_lossy(&output.stderr)));
+            };
+        }
 
         Ok(())
     }
@@ -70,12 +96,31 @@ impl DockerPackage {
         format!("{}:{}", self.package.name, self.package.version)
     }
 
+    fn docker_target_bin_dir(&self) -> PathBuf {
+        let relative_target_bin_dir = self
+            .metadata
+            .target_bin_dir
+            .strip_prefix("/")
+            .unwrap_or(&self.metadata.target_bin_dir);
+
+        self.docker_root.join(relative_target_bin_dir)
+    }
+
     fn copy_binaries(&self) -> Result<()> {
         debug!("Will now copy all dependant binaries");
 
+        let docker_target_bin_dir = self.docker_target_bin_dir();
+
+        std::fs::create_dir_all(&docker_target_bin_dir)
+            .map_err(Error::from_source)
+            .with_full_context(
+        "could not create `target_bin_dir` in Docker root",
+        format!("The build process needed to create `{}` but it could not. You may want to verify permissions.", &docker_target_bin_dir.display()),
+            )?;
+
         for binary in &self.binaries {
             let source = self.target_dir.join(binary);
-            let target = self.docker_root.join(binary);
+            let target = self.docker_target_bin_dir().join(binary);
 
             debug!("Copying {} to {}", source.display(), target.display());
 
@@ -93,14 +138,34 @@ impl DockerPackage {
         Ok(())
     }
 
+    fn package_root(&self) -> &Path {
+        self.toml_path.parent().unwrap()
+    }
+
     fn copy_extra_files(&self) -> Result<()> {
         debug!("Will now copy all extra files");
 
         for copy in self.metadata.extra_copies.iter().flatten() {
-            let source = self.target_dir.join(&copy.source);
-            // Change the target to the Docker root instead. And make sure the generated Dockerfile has the correct path.
-            todo!();
-            let target = self.docker_root.join(&copy.destination);
+            let source = self.package_root().join(&copy.source);
+            let target = self.docker_root.join(copy.relative_source()?);
+            let target_dir = target.parent().ok_or_else(|| {
+                Error::new("failed to determine target directory").with_explanation(format!(
+                    "The target directory could not be determined for the extra-file `{}`.",
+                    copy.source.display()
+                ))
+            })?;
+
+            debug!(
+                "Ensuring that the target directory `{}` exists.",
+                target_dir.display()
+            );
+
+            std::fs::create_dir_all(target_dir)
+            .map_err(Error::from_source)
+            .with_full_context(
+        "could not create `target_bin_dir` in Docker root",
+        format!("The build process needed to create `{}` but it could not. You may want to verify permissions.", &target_dir.display()),
+            )?;
 
             debug!("Copying {} to {}", source.display(), target.display());
 
@@ -127,7 +192,7 @@ impl DockerPackage {
             .map_err(Error::from_source)
             .with_full_context(
         "could not create Dockerfile path",
-        "The build process needed to create `{}` but it could not. You may want to verify permissions.",
+        format!("The build process needed to create `{}` but it could not. You may want to verify permissions.", dockerfile_root.unwrap().display()),
             )?;
 
         debug!("Writing Dockerfile to: {}", dockerfile_path.display());
@@ -153,15 +218,22 @@ impl DockerPackage {
         for binary in &self.binaries {
             content.push_str(&format!(
                 "COPY {} {}\n",
-                binary, &self.metadata.target_bin_dir
+                self.metadata
+                    .target_bin_dir
+                    .strip_prefix("/")
+                    .unwrap_or(&self.metadata.target_bin_dir)
+                    .join(binary)
+                    .display(),
+                &self.metadata.target_bin_dir.display()
             ));
         }
 
         for copy in self.metadata.extra_copies.iter().flatten() {
-            let file_name = copy.source.file_name().ok_or_else(|| Error::new("invalid copy command").with_explanation(format!("Could not determine filename in COPY command `{}`. Please verify your configuration.", copy.to_string())))?;
+            let relative_source = copy.relative_source()?;
+
             content.push_str(&format!(
                 "COPY {} {}\n",
-                file_name.to_string_lossy(),
+                relative_source.display(),
                 copy.destination.display(),
             ));
         }
@@ -183,7 +255,7 @@ impl DockerPackage {
         }
 
         if let Some(workdir) = &self.metadata.workdir {
-            content.push_str(&format!("WORKDIR {}\n", workdir));
+            content.push_str(&format!("WORKDIR {}\n", workdir.display()));
         }
 
         content.push_str(&format!("CMD [\"./{}\"]", &self.binaries[0]));
