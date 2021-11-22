@@ -9,6 +9,7 @@ use crate::{docker::DockerPackage, Error, Result};
 #[serde(deny_unknown_fields)]
 pub struct DockerMetadata {
     pub base: String,
+    pub registry: String,
     pub target_bin_dir: PathBuf,
     pub env: Option<Vec<EnvironmentVariable>>,
     pub run: Option<Vec<String>>,
@@ -16,6 +17,8 @@ pub struct DockerMetadata {
     pub workdir: Option<PathBuf>,
     pub extra_copies: Option<Vec<CopyCommand>>,
     pub extra_commands: Option<Vec<String>>,
+    #[serde(default)]
+    pub allow_aws_ecr_creation: bool,
 }
 
 impl DockerMetadata {

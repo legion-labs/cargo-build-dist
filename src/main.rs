@@ -115,7 +115,7 @@ fn run() -> Result<()> {
         )
         .get_matches();
 
-    let mut log_level = log::LevelFilter::Info;
+    let mut log_level = log::LevelFilter::Off;
 
     if matches.is_present(ARG_DEBUG) {
         log_level = log::LevelFilter::Debug;
