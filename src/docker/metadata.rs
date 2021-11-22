@@ -6,6 +6,7 @@ use serde::Deserialize;
 use crate::{docker::DockerPackage, Dependencies, Error, Result};
 
 #[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct DockerMetadata {
     pub deps_hash: Option<String>,
     pub base: String,

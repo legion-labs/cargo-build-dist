@@ -3,7 +3,6 @@
 
 use cargo_metadata::PackageId;
 use log::debug;
-use serde::Deserialize;
 use std::{cmp::Ordering, collections::BTreeSet, fmt::Display, path::PathBuf};
 
 use crate::{
@@ -238,7 +237,7 @@ impl ContextBuilder {
 
                 debug!("Considering package {} {}", package.name, package.version);
 
-                let metadata = match Metadata::deserialize(metadata) {
+                let metadata = match serde_path_to_error::deserialize(metadata) {
                     Ok(metadata) => metadata,
                     Err(e) => {
                         return Some(Err(Error::new("failed to parse `build-dist` metadata")
