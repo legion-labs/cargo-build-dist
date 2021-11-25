@@ -5,7 +5,7 @@ use std::{
 };
 
 use aws_sdk_ecr::{model::Tag, Region, SdkError};
-use log::debug;
+use log::{debug, warn};
 use regex::Regex;
 
 use crate::{dist_target::DistTarget, Error, ErrorContext, Result};
@@ -60,7 +60,13 @@ impl DockerPackage {
             if self.metadata.allow_aws_ecr_creation {
                 debug!("AWS ECR repository creation is allowed for this target");
 
-                self.ensure_aws_ecr_repository_exists(&aws_ecr_information)?;
+                if dry_run {
+                    warn!(
+                        "`--dry-run` specified, will not really ensure the ECR repository exists"
+                    );
+                } else {
+                    self.ensure_aws_ecr_repository_exists(&aws_ecr_information)?;
+                }
             } else {
                 debug!("AWS ECR repository creation is not allowed for this target - if this is not intended, specify `allows_aws_ecr_creation` in `Cargo.toml`");
             }
@@ -73,8 +79,8 @@ impl DockerPackage {
         let args = vec!["push", &docker_image_name];
 
         if dry_run {
-            debug!("Would now execute: docker {}", args.join(" "));
-            debug!("`--dry-run` specified: not continuing for real");
+            warn!("Would now execute: docker {}", args.join(" "));
+            warn!("`--dry-run` specified: not continuing for real");
 
             return Ok(());
         }
