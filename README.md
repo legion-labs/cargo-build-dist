@@ -41,7 +41,9 @@ There are several types of configurations available, depending on your distribut
 ### Docker
 
 ```toml
-[package.metadata.build-dist.docker]
+[package.metadata.build-dist.your-image-name]
+type = "docker"
+registry = "1234.dkr.ecr.ca-central-1.amazonaws.com"
 base = "ubuntu:20.04" # The base Docker image to use.
 env = [ # A list of environment variables to set.
     { name = "TZ", value = "Etc/UTC" },
@@ -78,3 +80,7 @@ EXPOSE 80 100
 WORKDIR /usr/src/app/
 CMD ["./your-crate-binary"]
 ```
+
+This image will have the image name:
+`1234.dkr.ecr.ca-central-1.amazonaws.com/your-image-name` and your current crate
+version.

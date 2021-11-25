@@ -10,9 +10,10 @@ publish = false
 anyhow = "1"
 
 [package.metadata.build-dist]
-deps_hash = "3f63e6a42f1da09be6fbd3338dcd01fffedc3f3e5f2070fade8743e880b97b09"
+deps_hash = "68e0fa4ba2903f04582cedb135190f6448a36553cb5065cd7031be549b7ca53c"
 
-[package.metadata.build-dist.docker]
+[package.metadata.build-dist.simple]
+type = "docker"
 base = "ubuntu:20.04"
 registry = "550877636976.dkr.ecr.ca-central-1.amazonaws.com"
 allow_aws_ecr_creation = true

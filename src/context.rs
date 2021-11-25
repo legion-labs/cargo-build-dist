@@ -10,7 +10,7 @@ use crate::{
     action_step,
     dist_target::{BuildOptions, DistTarget},
     ignore_step,
-    metadata::Metadata,
+    metadata::{Metadata, Target},
     Error, Result,
 };
 
@@ -194,20 +194,27 @@ impl ContextBuilder {
 
                 let mut dist_targets: Vec<Box<dyn DistTarget>> = vec![];
 
-                if let Some(docker) = package_metadata.docker {
+                for (name, target) in package_metadata.targets {
+                    match target {
+                        Target::Docker(docker) => {
                     if cfg!(windows) {
                         ignore_step!(
                             "Ignoring",
-                            "distribution target `Docker` in package `{} {}` as it is not supported on Windows.",
+                            "distribution target `{}` of type `{}` in package `{} {}` as it is not supported on Windows.",
+                            name,
+                            "docker",
                             package.name,
                             package.version,
                         );
                     } else {
                         dist_targets.push(Box::new(docker.into_dist_target(
+                            name,
                             &target_dir,
                             &package,
                         )?));
                     }
+                        }
+                    };
                 }
 
                 Ok(dist_targets)

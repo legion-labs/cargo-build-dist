@@ -24,6 +24,7 @@ pub struct DockerMetadata {
 impl DockerMetadata {
     pub fn into_dist_target(
         self,
+        name: String,
         target_dir: &PathBuf,
         package: &cargo_metadata::Package,
     ) -> Result<DockerPackage> {
@@ -53,7 +54,7 @@ impl DockerMetadata {
         );
 
         Ok(DockerPackage {
-            name: package.name.clone(),
+            name: name,
             version: package.version.to_string(),
             toml_path: package.manifest_path.clone().into(),
             binaries,
