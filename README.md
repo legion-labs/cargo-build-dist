@@ -38,6 +38,13 @@ Distribution targets can be added for any crate in the project.
 
 There are several types of configurations available, depending on your distribution type:
 
+| Type | Description |
+|-|-|
+| `aws-lambda` | AWS Lambda package. |
+| `docker` | Docker image. |
+
+The sections hereafter describe the configuration for each type.
+
 ### Docker
 
 ```toml
