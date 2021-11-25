@@ -4,7 +4,7 @@ use std::{
     process::Command,
 };
 
-use aws_sdk_ecr::{model::Tag, Region};
+use aws_sdk_ecr::{model::Tag, Region, SdkError};
 use log::debug;
 use regex::Regex;
 
@@ -120,7 +120,7 @@ impl DockerPackage {
         );
 
         let runtime = tokio::runtime::Builder::new_current_thread()
-            .enable_time()
+            .enable_all()
             .build()
             .unwrap();
 
@@ -144,17 +144,29 @@ impl DockerPackage {
                         .build(),
                 )
                 .send()
-                .await
-                .map_err(Error::from_source)
-                .with_full_context(
-                    "failed to create AWS ECR repository",
-                    format!(
-                        "The creation of the AWS ECR repository `{}` failed. \
+                .await;
+
+            let output = match output {
+                Ok(output) => output,
+                Err(err) => {
+                    if let SdkError::ServiceError { err, .. } = &err {
+                        if err.is_repository_already_exists_exception() {
+                            debug!("AWS ECR repository already exists: not recreating it.");
+                            return Ok(());
+                        }
+                    }
+
+                    return Err(Error::from_source(err)).with_full_context(
+                        "failed to create AWS ECR repository",
+                        format!(
+                            "The creation of the AWS ECR repository `{}` failed. \
                     Please check your credentials and permissions and make \
                     sure the repository does not already exist with incompatible tags.",
-                        aws_ecr_information.to_string()
-                    ),
-                )?;
+                            aws_ecr_information.to_string()
+                        ),
+                    );
+                }
+            };
 
             if let Some(repository) = output.repository {
                 debug!(
