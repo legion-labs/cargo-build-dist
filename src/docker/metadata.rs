@@ -3,22 +3,23 @@ use std::{fmt::Display, path::PathBuf};
 use log::debug;
 use serde::Deserialize;
 
-use crate::{docker::DockerPackage, Error, Result};
+use crate::{docker::DockerPackage, Error, ErrorContext, Result};
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct DockerMetadata {
-    pub base: String,
     pub registry: String,
-    pub target_bin_dir: PathBuf,
-    pub env: Option<Vec<EnvironmentVariable>>,
-    pub run: Option<Vec<String>>,
-    pub expose: Option<Vec<i32>>,
-    pub workdir: Option<PathBuf>,
-    pub extra_copies: Option<Vec<CopyCommand>>,
-    pub extra_commands: Option<Vec<String>>,
+    pub template: String,
+    #[serde(default)]
+    pub extra_files: Vec<CopyCommand>,
     #[serde(default)]
     pub allow_aws_ecr_creation: bool,
+    #[serde(default = "default_target_bin_dir")]
+    pub target_bin_dir: PathBuf,
+}
+
+fn default_target_bin_dir() -> PathBuf {
+    PathBuf::from("/bin")
 }
 
 impl DockerMetadata {
@@ -52,6 +53,13 @@ impl DockerMetadata {
             "Package contains the following binaries: {}",
             binaries.join(", ")
         );
+
+        // Make sure the template is valid as soon as possible.
+        tera::Template::new("", None, &self.template)
+            .map_err(Error::from_source).with_full_context(
+                "failed to render Dockerfile template",
+                "The specified Dockerfile template could not be parsed, which may indicate a possible syntax error."
+            )?;
 
         Ok(DockerPackage {
             name: name,

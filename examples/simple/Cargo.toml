@@ -14,28 +14,12 @@ deps_hash = "68e0fa4ba2903f04582cedb135190f6448a36553cb5065cd7031be549b7ca53c"
 
 [package.metadata.build-dist.simple]
 type = "docker"
-base = "ubuntu:20.04"
 registry = "550877636976.dkr.ecr.ca-central-1.amazonaws.com"
+template = """
+FROM ubuntu:20.04
+{{ copy_all_binaries }}
+{{ copy_all_extra_files }}
+CMD [{{ binaries.0 }}]
+"""
 allow_aws_ecr_creation = true
-
-env = [
-    { name = "TZ", value = "Etc/UTC" },
-    { name = "APP_USER", value = "appuser" },
-    { name = "APP", value = "/usr/src/app" },
-]
-
-target_bin_dir = "/usr/src/app/"
-
-extra_copies = [
-    { source = "src/test/test-file", destination = "/usr/src/app/" },
-]
-
-extra_commands = [
-    "RUN ls -al",
-    "RUN echo hello > hello.txt",
-    "RUN cat /usr/src/app/test-file",
-]
-
-expose = [80, 100]
-
-workdir = "/usr/src/app/"
+extra_files = [{ source = "src/test/test-file", destination = "/usr/src/app/" }]

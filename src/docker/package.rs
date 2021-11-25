@@ -293,7 +293,7 @@ impl DockerPackage {
     fn copy_extra_files(&self) -> Result<()> {
         debug!("Will now copy all extra files");
 
-        for copy in self.metadata.extra_copies.iter().flatten() {
+        for copy in self.metadata.extra_files.iter() {
             let source = self.package_root().join(&copy.source);
             let target = self.docker_root.join(copy.relative_source()?);
             let target_dir = target.parent().ok_or_else(|| {
@@ -333,6 +333,9 @@ impl DockerPackage {
 
     fn write_dockerfile(&self) -> Result<PathBuf> {
         let dockerfile = self.generate_dockerfile()?;
+
+        debug!("Generated Dockerfile:\n{}", dockerfile);
+
         let dockerfile_path = self.get_dockerfile_name();
         let dockerfile_root = dockerfile_path.parent();
 
@@ -356,59 +359,78 @@ impl DockerPackage {
         self.docker_root.join("Dockerfile")
     }
 
-    fn generate_dockerfile(&self) -> Result<String> {
-        let mut content = format!("FROM {}\n", &self.metadata.base);
+    fn generate_context(&self) -> tera::Context {
+        let mut context = tera::Context::new();
 
-        for env in self.metadata.env.iter().flatten() {
-            content.push_str(&format!("ENV {}={}\n", env.name, env.value));
-        }
+        context.insert("package_name", &self.package.name);
+        context.insert("package_version", &self.package.version);
 
-        for binary in &self.binaries {
-            content.push_str(&format!(
-                "COPY {} {}\n",
+        let binaries: Vec<String> = self
+            .binaries
+            .iter()
+            .map(|binary| {
                 self.metadata
                     .target_bin_dir
-                    .strip_prefix("/")
-                    .unwrap_or(&self.metadata.target_bin_dir)
                     .join(binary)
-                    .display(),
-                &self.metadata.target_bin_dir.display()
-            ));
-        }
-
-        for copy in self.metadata.extra_copies.iter().flatten() {
-            let relative_source = copy.relative_source()?;
-
-            content.push_str(&format!(
-                "COPY {} {}\n",
-                relative_source.display(),
-                copy.destination.display(),
-            ));
-        }
-
-        for command in self.metadata.extra_commands.iter().flatten() {
-            content.push_str(&format!("{}\n", command));
-        }
-
-        let ports: Vec<_> = self
-            .metadata
-            .expose
-            .iter()
-            .flatten()
-            .map(|port| port.to_string())
+                    .display()
+                    .to_string()
+            })
             .collect();
 
-        if ports.len() > 0 {
-            content.push_str(&format!("EXPOSE {}\n", ports.join(" ")));
-        }
+        context.insert("binaries", &binaries);
 
-        if let Some(workdir) = &self.metadata.workdir {
-            content.push_str(&format!("WORKDIR {}\n", workdir.display()));
-        }
+        let extra_files: Vec<String> = self
+            .metadata
+            .extra_files
+            .iter()
+            .map(|cc| cc.destination.display().to_string())
+            .collect();
 
-        content.push_str(&format!("CMD [\"./{}\"]", &self.binaries[0]));
+        context.insert("extra_files", &extra_files);
 
-        Ok(content)
+        // Add some helper for common patterns to improve user experience.
+
+        let copy_all_binaries = tera::Tera::one_off(
+            "
+# Copy all binaries to the Docker image.
+{% for binary in binaries -%}
+ADD {{ binary }} {{ binary }}
+{% endfor -%}
+# End of copy.
+",
+            &context,
+            false,
+        )
+        .unwrap();
+
+        context.insert("copy_all_binaries", copy_all_binaries.trim());
+
+        let copy_all_extra_files = tera::Tera::one_off(
+            "
+# Copy all extra files to the Docker image.
+{% for extra_file in extra_files -%}
+ADD {{ extra_file }} {{ extra_file }}
+{% endfor -%}
+# End of copy.
+",
+            &context,
+            false,
+        )
+        .unwrap();
+
+        context.insert("copy_all_extra_files", copy_all_extra_files.trim());
+
+        context
+    }
+
+    fn generate_dockerfile(&self) -> Result<String> {
+        let context = self.generate_context();
+
+        tera::Tera::one_off(&self.metadata.template, &context, false)
+            .map_err(Error::from_source).with_full_context(
+                "failed to render Dockerfile template",
+                "The specified Dockerfile template could not rendered properly, which may indicate a possible syntax error."
+            )
     }
 }
 

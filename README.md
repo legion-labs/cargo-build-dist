@@ -51,41 +51,25 @@ The sections hereafter describe the configuration for each type.
 [package.metadata.build-dist.your-image-name]
 type = "docker"
 registry = "1234.dkr.ecr.ca-central-1.amazonaws.com"
-base = "ubuntu:20.04" # The base Docker image to use.
-env = [ # A list of environment variables to set.
-    { name = "TZ", value = "Etc/UTC" },
-    { name = "APP_USER", value = "appuser" },
-    { name = "APP", value = "/usr/src/app" },
-]
-target_bin_dir = "/usr/src/app/" # The target directory in the Docker image to place the binary.
+target_bin_dir = "/usr/src/app/" # Optional. The target directory in which to place the binaries. Defaults to "/bin".
+template = """
+FROM ubuntu:20.04
+{{ copy_all_binaries }}
+{{ copy_all_extra_files }}
+CMD [{{ binaries.0 }}]
+"""
 extra_copies = [ # A list of extra files to copy into the Docker image.
     { source = "src/test/test-file", destination = "/usr/src/app/" }
 ]
-
-extra_commands = [ # A list of extra commands to run in the Docker image.
-    "RUN ls -al",
-    "RUN echo hello > hello.txt",
-    "RUN cat /usr/scr/app/testfile"
-]
-expose = [80, 100] # A list of ports to expose.
-workdir = "/usr/src/app/" # The working directory to run the Docker image.
 ```
 
 Which will generate a Dockerfile with the following content:
 
 ```bash
 FROM ubuntu:20.04
-ENV TZ=Etc/UTC \
-APP_USER=appuser \
-APP=/usr/src/app
-COPY your-crate-binary /usr/src/app/
-COPY test-file /usr/src/app/
-RUN ls -al
-RUN echo hello > hello.txt
-RUN cat /usr/src/app/test-file
-EXPOSE 80 100
-WORKDIR /usr/src/app/
-CMD ["./your-crate-binary"]
+ADD /bin/simple /bin/simple
+ADD /usr/src/app/ /usr/src/app/
+CMD [/bin/simple]
 ```
 
 This image will have the image name:
