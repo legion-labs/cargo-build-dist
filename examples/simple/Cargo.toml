@@ -1,0 +1,40 @@
+[package]
+name = "simple"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+anyhow = "1"
+
+[package.metadata.build-dist]
+deps_hash = "3f63e6a42f1da09be6fbd3338dcd01fffedc3f3e5f2070fade8743e880b97b09"
+
+[package.metadata.build-dist.docker]
+base = "ubuntu:20.04"
+registry = "550877636976.dkr.ecr.ca-central-1.amazonaws.com"
+allow_aws_ecr_creation = true
+
+env = [
+    { name = "TZ", value = "Etc/UTC" },
+    { name = "APP_USER", value = "appuser" },
+    { name = "APP", value = "/usr/src/app" },
+]
+
+target_bin_dir = "/usr/src/app/"
+
+extra_copies = [
+    { source = "src/test/test-file", destination = "/usr/src/app/" },
+]
+
+extra_commands = [
+    "RUN ls -al",
+    "RUN echo hello > hello.txt",
+    "RUN cat /usr/src/app/test-file",
+]
+
+expose = [80, 100]
+
+workdir = "/usr/src/app/"

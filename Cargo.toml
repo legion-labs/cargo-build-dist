@@ -1,57 +1,41 @@
+[workspace]
+members = ["examples/*"]
+
 [package]
-name = "cargo-dockerize"
+name = "cargo-build-dist"
 version = "0.1.0"
 edition = "2018"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [lib]
-name = "cargo_dockerize"
+name = "cargo_build_dist"
 path = "src/lib.rs"
 doc = true
 
 [[bin]]
-name = "cargo-dockerize"
+name = "cargo-build-dist"
 path = "src/main.rs"
 doc = false
 
 [dependencies]
+anyhow = "1.0"
 cargo_toml = "0.9"
 cargo_metadata = "0.14.0"
 clap = "2"
 serde = "1"
 serde_json = "1"
+serde_path_to_error = "0.1"
 tera = "1"
 itertools = "0.10"
 sha2 = "0.9"
+thiserror = "1.0"
 futures = { version = "0.3.*" }
 tokio = { version = "1", features = ["full"] }
-aws_sdk_ecr = { git = "https://github.com/awslabs/aws-sdk-rust", tag = "v0.0.16-alpha", package = "aws-sdk-ecr" }
-base64 = {version = "0.13.0"}
-
-[package.metadata.docker]
-base = "ubuntu:20.04"
-
-deps_hash = "f9d194bf3f00f0b1bbd71a6c4d4853c67229a115460aea78cc7f0dcbb80abcd2"
-
-env = [
-    { name = "TZ", value = "Etc/UTC" },
-    { name = "APP_USER", value = "appuser" },
-    { name = "APP", value = "/usr/src/app" },
-]
-
-copy_dest_dir = "/usr/src/app/"
-
-extra_copies = [
-    { source = "src/test/test-file", destination = "/usr/src/app/" }
-]
-
-extra_commands = [
-    "RUN ls -al",
-    "RUN echo hello > hello.txt",
-    "RUN cat /usr/src/app/test-file"
-]
-
-expose = [80, 100]
-
-workdir = "/usr/src/app/"
+aws_config = { git = "https://github.com/awslabs/aws-sdk-rust", tag = "v0.0.25-alpha", package = "aws-config" }
+aws_sdk_ecr = { git = "https://github.com/awslabs/aws-sdk-rust", tag = "v0.0.25-alpha", package = "aws-sdk-ecr" }
+base64 = { version = "0.13.0" }
+termcolor = "1.1"
+log = "0.4.0"
+env_logger = "0.8.4"
+regex = "1"
