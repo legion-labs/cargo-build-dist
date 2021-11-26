@@ -1,4 +1,5 @@
 use std::{
+    collections::HashSet,
     fmt::Display,
     path::{Path, PathBuf},
     process::Command,
@@ -293,39 +294,8 @@ impl DockerPackage {
     fn copy_extra_files(&self) -> Result<()> {
         debug!("Will now copy all extra files");
 
-        for copy in self.metadata.extra_files.iter() {
-            let source = self.package_root().join(&copy.source);
-            let target = self.docker_root.join(copy.relative_source()?);
-            let target_dir = target.parent().ok_or_else(|| {
-                Error::new("failed to determine target directory").with_explanation(format!(
-                    "The target directory could not be determined for the extra-file `{}`.",
-                    copy.source.display()
-                ))
-            })?;
-
-            debug!(
-                "Ensuring that the target directory `{}` exists.",
-                target_dir.display()
-            );
-
-            std::fs::create_dir_all(target_dir)
-            .map_err(Error::from_source)
-            .with_full_context(
-        "could not create `target_bin_dir` in Docker root",
-        format!("The build process needed to create `{}` but it could not. You may want to verify permissions.", &target_dir.display()),
-            )?;
-
-            debug!("Copying {} to {}", source.display(), target.display());
-
-            std::fs::copy(source, target)
-                .map_err(Error::from_source)
-                .with_full_context(
-                    "failed to copy extra file",
-                    format!(
-                        "The extra file `{}` could not be copied to the Docker image.",
-                        copy.source.display(),
-                    ),
-                )?;
+        for copy_command in self.metadata.extra_files.iter() {
+            copy_command.copy_files(&self.package_root(), &self.docker_root)?;
         }
 
         Ok(())
@@ -379,7 +349,7 @@ impl DockerPackage {
 
         context.insert("binaries", &binaries);
 
-        let extra_files: Vec<String> = self
+        let extra_files: HashSet<String> = self
             .metadata
             .extra_files
             .iter()

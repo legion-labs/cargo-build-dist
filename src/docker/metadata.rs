@@ -1,9 +1,9 @@
-use std::{fmt::Display, path::PathBuf};
+use std::path::PathBuf;
 
 use log::debug;
 use serde::Deserialize;
 
-use crate::{docker::DockerPackage, Error, ErrorContext, Result};
+use crate::{docker::DockerPackage, metadata::CopyCommand, Error, ErrorContext, Result};
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -72,45 +72,4 @@ impl DockerMetadata {
             package: package.clone(),
         })
     }
-}
-
-#[derive(Debug, Clone, Deserialize)]
-pub struct CopyCommand {
-    pub source: PathBuf,
-    pub destination: PathBuf,
-}
-
-impl CopyCommand {
-    pub fn relative_source(&self) -> Result<PathBuf> {
-        let file_name = self.source.file_name().ok_or_else(|| {
-            Error::new("copy command has no source file name").with_explanation(format!(
-                "The source of the copy command is not a valid path: {}",
-                self.source.display()
-            ))
-        })?;
-
-        let destination = self
-            .destination
-            .strip_prefix("/")
-            .unwrap_or(&self.destination);
-
-        Ok(destination.join(file_name))
-    }
-}
-
-impl Display for CopyCommand {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "COPY '{}' '{}'",
-            self.source.display(),
-            self.destination.display()
-        )
-    }
-}
-
-#[derive(Debug, Clone, Deserialize)]
-pub struct EnvironmentVariable {
-    pub name: String,
-    pub value: String,
 }

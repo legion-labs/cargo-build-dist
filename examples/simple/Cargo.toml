@@ -22,4 +22,7 @@ FROM ubuntu:20.04
 CMD [{{ binaries.0 }}]
 """
 allow_aws_ecr_creation = true
-extra_files = [{ source = "src/test/test-file", destination = "/usr/src/app/" }]
+extra_files = [
+    { source = "src/test/*", destination = "/usr/src/app/" },
+    { source = "src/test/*", destination = "/usr/src/app/" },
+]
