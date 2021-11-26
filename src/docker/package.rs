@@ -284,6 +284,9 @@ impl DockerPackage {
         compile_options.spec = cargo::ops::Packages::Packages(vec![self.package.name.clone()]);
         compile_options.build_config.requested_profile =
             cargo::util::interning::InternedString::new(&self.mode.to_string());
+        //TODO: Check the answer at: https://stackoverflow.com/questions/52996949/how-can-i-find-the-current-rust-compilers-default-llvm-target-triple?rq=1
+        // And possibly determine if the selected target matches the current host.
+        // If it does, we should not specify a target altogether to leverage the existing build cache.
         compile_options.build_config.requested_kinds =
             vec![cargo::core::compiler::CompileKind::Target(
                 CompileTarget::new(&self.metadata.target_runtime).unwrap(),
