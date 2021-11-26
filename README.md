@@ -51,7 +51,8 @@ The sections hereafter describe the configuration for each type.
 [package.metadata.build-dist.your-image-name]
 type = "docker"
 registry = "1234.dkr.ecr.ca-central-1.amazonaws.com"
-target_bin_dir = "/usr/src/app/" # Optional. The target directory in which to place the binaries. Defaults to "/bin".
+allow_aws_ecr_creation = true # Optional, defaults to false. Allows the creation of AWS ECR repositories for the image.
+target_bin_dir = "/usr/src/app/bin/" # Optional. The target directory in which to place the binaries. Defaults to "/bin".
 template = """
 FROM ubuntu:20.04
 {{ copy_all_binaries }}
@@ -67,9 +68,9 @@ Which will generate a Dockerfile with the following content:
 
 ```bash
 FROM ubuntu:20.04
-ADD /bin/simple /bin/simple
+ADD /usr/src/app/bin/simple /usr/src/app/bin/simple
 ADD /usr/src/app/ /usr/src/app/
-CMD [/bin/simple]
+CMD [/usr/src/app/bin/simple]
 ```
 
 This image will have the image name:

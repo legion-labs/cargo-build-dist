@@ -3,12 +3,16 @@ use std::path::PathBuf;
 use log::debug;
 use serde::Deserialize;
 
-use crate::{docker::DockerPackage, metadata::CopyCommand, Error, ErrorContext, Result};
+use crate::{metadata::CopyCommand, Error, ErrorContext, Mode, Result};
+
+use super::DockerPackage;
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct DockerMetadata {
     pub registry: String,
+    #[serde(default = "default_target_runtime")]
+    pub target_runtime: String,
     pub template: String,
     #[serde(default)]
     pub extra_files: Vec<CopyCommand>,
@@ -22,15 +26,21 @@ fn default_target_bin_dir() -> PathBuf {
     PathBuf::from("/bin")
 }
 
+fn default_target_runtime() -> String {
+    "x86_64-unknown-linux-gnu".to_string()
+}
+
 impl DockerMetadata {
     pub fn into_dist_target(
         self,
         name: String,
-        target_dir: &PathBuf,
+        target_root: &PathBuf,
+        mode: &Mode,
         package: &cargo_metadata::Package,
     ) -> Result<DockerPackage> {
         debug!("Package has a Docker target distribution.");
 
+        let target_dir = target_root.join(mode.to_string());
         let docker_root = target_dir.join("docker").join(&package.name);
 
         let binaries: Vec<_> = package
@@ -61,14 +71,16 @@ impl DockerMetadata {
                 "The specified Dockerfile template could not be parsed, which may indicate a possible syntax error."
             )?;
 
+        let mode = mode.clone();
+
         Ok(DockerPackage {
             name: name,
             version: package.version.to_string(),
             toml_path: package.manifest_path.clone().into(),
-            binaries,
             metadata: self,
-            target_dir: target_dir.clone(),
+            target_dir: target_dir,
             docker_root,
+            mode,
             package: package.clone(),
         })
     }

@@ -23,3 +23,8 @@ CMD [{{ binaries.0 }}]
 """
 allow_aws_ecr_creation = true
 extra_files = [{ source = "src/test/*", destination = "/usr/src/app/" }]
+
+[package.metadata.build-dist.simple-lambda]
+type = "aws-lambda"
+s3_bucket = "legionlabs-lambdas-playground"
+extra_files = [{ source = "src/test/*", destination = "/usr/src/app/" }]

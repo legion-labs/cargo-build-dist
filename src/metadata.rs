@@ -9,7 +9,10 @@ use std::{
 use log::debug;
 use serde::{Deserialize, Deserializer};
 
-use crate::{docker::DockerMetadata, Error, ErrorContext};
+use crate::{
+    aws_lambda::AwsLambdaMetadata, dist_target::DistTarget, docker::DockerMetadata, Error,
+    ErrorContext, Mode,
+};
 
 /// The root metadata structure.
 #[derive(Debug, Clone, Deserialize)]
@@ -22,6 +25,34 @@ pub struct Metadata {
 #[derive(Debug, Clone)]
 pub enum Target {
     Docker(crate::docker::DockerMetadata),
+    AwsLambda(crate::aws_lambda::AwsLambdaMetadata),
+}
+
+impl Target {
+    pub fn into_dist_target(
+        self,
+        name: String,
+        target_root: &PathBuf,
+        mode: &Mode,
+        package: &cargo_metadata::Package,
+    ) -> crate::Result<Box<dyn DistTarget>> {
+        match self {
+            Self::Docker(metadata) => metadata
+                .into_dist_target(name, target_root, mode, package)
+                .map(|target| {
+                    let x: Box<dyn DistTarget> = Box::new(target);
+
+                    x
+                }),
+            Target::AwsLambda(metadata) => metadata
+                .into_dist_target(name, target_root, mode, package)
+                .map(|target| {
+                    let x: Box<dyn DistTarget> = Box::new(target);
+
+                    x
+                }),
+        }
+    }
 }
 
 impl<'de> Deserialize<'de> for Target {
@@ -33,6 +64,8 @@ impl<'de> Deserialize<'de> for Target {
         enum TargetType {
             #[serde(rename = "docker")]
             Docker,
+            #[serde(rename = "aws-lambda")]
+            AwsLambda,
         }
 
         #[derive(Deserialize)]
@@ -47,6 +80,9 @@ impl<'de> Deserialize<'de> for Target {
         match helper.target_type {
             TargetType::Docker => DockerMetadata::deserialize(helper.data)
                 .map(Target::Docker)
+                .map_err(serde::de::Error::custom),
+            TargetType::AwsLambda => AwsLambdaMetadata::deserialize(helper.data)
+                .map(Target::AwsLambda)
                 .map_err(serde::de::Error::custom),
         }
     }

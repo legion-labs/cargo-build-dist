@@ -8,12 +8,13 @@ use std::{cmp::Ordering, collections::BTreeSet, fmt::Display, path::PathBuf, tim
 
 use crate::{
     action_step,
-    dist_target::{BuildOptions, DistTarget},
+    dist_target::{BuildOptions, BuildResult, DistTarget},
     ignore_step,
-    metadata::{Metadata, Target},
+    metadata::Metadata,
     Error, Result,
 };
 
+#[derive(Debug, Clone)]
 pub enum Mode {
     Debug,
     Release,
@@ -55,12 +56,12 @@ impl ContextBuilder {
         debug!("Building context.");
 
         let metadata = self.get_metadata()?;
-        let target_dir = self.get_target_dir(&metadata);
+        let target_root = self.get_target_root(&metadata);
 
-        debug!("Using target directory: {}", target_dir.display());
+        debug!("Using target directory: {}", target_root.display());
 
         let packages = self.scan_packages(&metadata)?;
-        let dist_targets = self.resolve_dist_targets(metadata, &target_dir, packages)?;
+        let dist_targets = self.resolve_dist_targets(metadata, &target_root, packages)?;
 
         Ok(Context::new(dist_targets))
     }
@@ -143,7 +144,7 @@ impl ContextBuilder {
     fn resolve_dist_targets(
         &self,
         metadata: cargo_metadata::Metadata,
-        target_dir: &PathBuf,
+        target_root: &PathBuf,
         packages: impl IntoIterator<Item = (PackageId, Metadata)>,
     ) -> Result<Vec<Box<dyn DistTarget>>> {
         packages
@@ -195,26 +196,7 @@ impl ContextBuilder {
                 let mut dist_targets: Vec<Box<dyn DistTarget>> = vec![];
 
                 for (name, target) in package_metadata.targets {
-                    match target {
-                        Target::Docker(docker) => {
-                    if cfg!(windows) {
-                        ignore_step!(
-                            "Ignoring",
-                            "distribution target `{}` of type `{}` in package `{} {}` as it is not supported on Windows.",
-                            name,
-                            "docker",
-                            package.name,
-                            package.version,
-                        );
-                    } else {
-                        dist_targets.push(Box::new(docker.into_dist_target(
-                            name,
-                            &target_dir,
-                            &package,
-                        )?));
-                    }
-                        }
-                    };
+                    dist_targets.push(target.into_dist_target(name.clone(), &target_root,&self.mode,&package)?)
                 }
 
                 Ok(dist_targets)
@@ -284,15 +266,8 @@ impl ContextBuilder {
             .collect()
     }
 
-    fn get_target_dir(&self, metadata: &cargo_metadata::Metadata) -> PathBuf {
-        let target_dir = PathBuf::from(
-            metadata
-                .target_directory
-                .as_path()
-                .join(self.mode.to_string()),
-        );
-
-        target_dir
+    fn get_target_root(&self, metadata: &cargo_metadata::Metadata) -> PathBuf {
+        PathBuf::from(metadata.target_directory.as_path())
     }
 
     fn get_metadata(&self) -> Result<cargo_metadata::Metadata> {
@@ -368,14 +343,19 @@ impl Context {
             action_step!("Building", dist_target.to_string());
             let now = Instant::now();
 
-            dist_target.build(&options)?;
-
-            action_step!(
-                "Finished",
-                "{} in {:.2}s",
-                dist_target,
-                now.elapsed().as_secs_f64()
-            );
+            match dist_target.build(&options)? {
+                BuildResult::Success => {
+                    action_step!(
+                        "Finished",
+                        "{} in {:.2}s",
+                        dist_target,
+                        now.elapsed().as_secs_f64()
+                    );
+                }
+                BuildResult::Ignored(reason) => {
+                    ignore_step!("Ignored", "{}", reason,);
+                }
+            }
         }
 
         Ok(())

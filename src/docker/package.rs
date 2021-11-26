@@ -6,10 +6,18 @@ use std::{
 };
 
 use aws_sdk_ecr::{model::Tag, Region, SdkError};
+use cargo::{
+    core::compiler::{CompileMode, CompileTarget},
+    ops::{compile, CompileOptions},
+};
 use log::{debug, warn};
 use regex::Regex;
 
-use crate::{dist_target::DistTarget, Error, ErrorContext, Result};
+use crate::{
+    action_step,
+    dist_target::{BuildResult, DistTarget},
+    Error, ErrorContext, Mode, Result,
+};
 
 use super::DockerMetadata;
 
@@ -18,10 +26,10 @@ pub struct DockerPackage {
     pub name: String,
     pub version: String,
     pub toml_path: PathBuf,
-    pub binaries: Vec<String>,
     pub metadata: DockerMetadata,
     pub target_dir: PathBuf,
     pub docker_root: PathBuf,
+    pub mode: Mode,
     pub package: cargo_metadata::Package,
 }
 
@@ -36,18 +44,27 @@ impl DistTarget for DockerPackage {
         &self.package
     }
 
-    fn build(&self, options: &crate::BuildOptions) -> Result<()> {
-        let dockerfile = self.write_dockerfile()?;
-        self.copy_binaries()?;
+    fn build(&self, options: &crate::BuildOptions) -> Result<BuildResult> {
+        if cfg!(windows) {
+            return Ok(BuildResult::Ignored(
+                "Docker build is not supported on Windows".to_string(),
+            ));
+        }
+
+        let binaries = self.build_binaries()?;
+        let dockerfile = self.write_dockerfile(&binaries)?;
+        self.copy_binaries(&binaries)?;
         self.copy_extra_files()?;
 
-        self.build_dockerfile(dockerfile, options.verbose)?;
-        self.push_docker_image(options.verbose, options.dry_run)
+        self.build_dockerfile(dockerfile, options)?;
+        self.push_docker_image(options)?;
+
+        Ok(BuildResult::Success)
     }
 }
 
 impl DockerPackage {
-    fn push_docker_image(&self, verbose: bool, dry_run: bool) -> Result<()> {
+    fn push_docker_image(&self, options: &crate::BuildOptions) -> Result<()> {
         let mut cmd = Command::new("docker");
         let docker_image_name = self.docker_image_name();
 
@@ -61,7 +78,7 @@ impl DockerPackage {
             if self.metadata.allow_aws_ecr_creation {
                 debug!("AWS ECR repository creation is allowed for this target");
 
-                if dry_run {
+                if options.dry_run {
                     warn!(
                         "`--dry-run` specified, will not really ensure the ECR repository exists"
                     );
@@ -79,18 +96,18 @@ impl DockerPackage {
 
         let args = vec!["push", &docker_image_name];
 
-        if dry_run {
+        if options.dry_run {
             warn!("Would now execute: docker {}", args.join(" "));
             warn!("`--dry-run` specified: not continuing for real");
 
             return Ok(());
         }
 
-        debug!("Will now execute: docker {}", args.join(" "));
+        action_step!("Running", "`docker {}`", args.join(" "),);
 
         cmd.args(args);
 
-        if verbose {
+        if options.verbose {
             let status = cmd.status().map_err(Error::from_source).with_full_context(
                 "failed to push Docker image",
                 "The push of the Docker image failed which could indicate a configuration problem.",
@@ -186,7 +203,7 @@ impl DockerPackage {
         })
     }
 
-    fn build_dockerfile(&self, docker_file: PathBuf, verbose: bool) -> Result<()> {
+    fn build_dockerfile(&self, docker_file: PathBuf, options: &crate::BuildOptions) -> Result<()> {
         let mut cmd = Command::new("docker");
         let docker_image_name = self.docker_image_name();
 
@@ -200,14 +217,14 @@ impl DockerPackage {
 
         let args = vec!["build", "-t", &docker_image_name, "."];
 
-        debug!("Will now execute: docker {}", args.join(" "));
+        action_step!("Running", "`docker {}`", args.join(" "),);
 
         cmd.args(args);
 
         // Disable the annoying `Use 'docker scan' to run Snyk tests` message.
         cmd.env("DOCKER_SCAN_SUGGEST", "false");
 
-        if verbose {
+        if options.verbose {
             let status = cmd.status().map_err(Error::from_source).with_full_context(
                 "failed to build Docker image",
                 "The build of the Docker image failed which could indicate a configuration problem.",
@@ -255,7 +272,35 @@ impl DockerPackage {
         self.docker_root.join(relative_target_bin_dir)
     }
 
-    fn copy_binaries(&self) -> Result<()> {
+    fn build_binaries(&self) -> Result<Vec<PathBuf>> {
+        let config = cargo::util::config::Config::default().unwrap();
+
+        let ws =
+            cargo::core::Workspace::new(std::path::Path::new(&self.package.manifest_path), &config)
+                .expect("Cannot create workspace");
+
+        let mut compile_options = CompileOptions::new(&config, CompileMode::Build).unwrap();
+
+        compile_options.spec = cargo::ops::Packages::Packages(vec![self.package.name.clone()]);
+        compile_options.build_config.requested_profile =
+            cargo::util::interning::InternedString::new(&self.mode.to_string());
+        compile_options.build_config.requested_kinds =
+            vec![cargo::core::compiler::CompileKind::Target(
+                CompileTarget::new(&self.metadata.target_runtime).unwrap(),
+            )];
+
+        compile(&ws, &compile_options)
+            .map(|compilation| {
+                compilation
+                    .binaries
+                    .iter()
+                    .map(|b| b.path.clone())
+                    .collect()
+            })
+            .map_err(|err| Error::new("failed to compile Docker binaries").with_source(err))
+    }
+
+    fn copy_binaries(&self, source_binaries: &Vec<PathBuf>) -> Result<()> {
         debug!("Will now copy all dependant binaries");
 
         let docker_target_bin_dir = self.docker_target_bin_dir();
@@ -267,9 +312,9 @@ impl DockerPackage {
         format!("The build process needed to create `{}` but it could not. You may want to verify permissions.", &docker_target_bin_dir.display()),
             )?;
 
-        for binary in &self.binaries {
-            let source = self.target_dir.join(binary);
-            let target = self.docker_target_bin_dir().join(binary);
+        for source in source_binaries {
+            let binary = source.file_name().unwrap().to_string_lossy().to_string();
+            let target = self.docker_target_bin_dir().join(&binary);
 
             debug!("Copying {} to {}", source.display(), target.display());
 
@@ -278,7 +323,7 @@ impl DockerPackage {
                 .with_full_context(
                     "failed to copy binary",
                     format!(
-                        "The binary `{}` could not be copied to the Docker image. Has this target been built before attempting its packaging?",
+                        "The binary `{}` could not be copied to the Docker image.",
                         binary
                     ),
                 )?;
@@ -301,8 +346,8 @@ impl DockerPackage {
         Ok(())
     }
 
-    fn write_dockerfile(&self) -> Result<PathBuf> {
-        let dockerfile = self.generate_dockerfile()?;
+    fn write_dockerfile(&self, binaries: &Vec<PathBuf>) -> Result<PathBuf> {
+        let dockerfile = self.generate_dockerfile(binaries)?;
 
         debug!("Generated Dockerfile:\n{}", dockerfile);
 
@@ -329,19 +374,18 @@ impl DockerPackage {
         self.docker_root.join("Dockerfile")
     }
 
-    fn generate_context(&self) -> tera::Context {
+    fn generate_context(&self, binaries: &Vec<PathBuf>) -> tera::Context {
         let mut context = tera::Context::new();
 
         context.insert("package_name", &self.package.name);
         context.insert("package_version", &self.package.version);
 
-        let binaries: Vec<String> = self
-            .binaries
+        let binaries: Vec<String> = binaries
             .iter()
             .map(|binary| {
                 self.metadata
                     .target_bin_dir
-                    .join(binary)
+                    .join(binary.file_name().unwrap())
                     .display()
                     .to_string()
             })
@@ -393,8 +437,8 @@ ADD {{ extra_file }} {{ extra_file }}
         context
     }
 
-    fn generate_dockerfile(&self) -> Result<String> {
-        let context = self.generate_context();
+    fn generate_dockerfile(&self, binaries: &Vec<PathBuf>) -> Result<String> {
+        let context = self.generate_context(binaries);
 
         tera::Tera::one_off(&self.metadata.template, &context, false)
             .map_err(Error::from_source).with_full_context(

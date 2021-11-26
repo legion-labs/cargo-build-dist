@@ -54,6 +54,7 @@
 // crate-specific exceptions:
 #![allow(clippy::implicit_hasher, clippy::missing_errors_doc)]
 
+mod aws_lambda;
 mod context;
 mod dist_target;
 mod docker;

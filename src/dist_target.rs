@@ -10,7 +10,12 @@ pub struct BuildOptions {
     pub verbose: bool,
 }
 
+pub enum BuildResult {
+    Success,
+    Ignored(String),
+}
+
 pub trait DistTarget: Display {
     fn package(&self) -> &Package;
-    fn build(&self, options: &BuildOptions) -> Result<()>;
+    fn build(&self, options: &BuildOptions) -> Result<BuildResult>;
 }
