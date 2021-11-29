@@ -1,5 +1,6 @@
 use std::{
     fmt::Display,
+    io::Write,
     path::{Path, PathBuf},
 };
 
@@ -8,6 +9,7 @@ use cargo::{
     ops::{compile, CompileOptions},
 };
 use log::debug;
+use walkdir::WalkDir;
 
 use crate::{
     dist_target::{BuildResult, DistTarget},
@@ -52,15 +54,81 @@ impl DistTarget for AwsLambdaPackage {
             ));
         }
 
+        self.clean()?;
+
         let binary = self.build_binary()?;
         self.copy_binary(binary)?;
         self.copy_extra_files()?;
+        self.build_zip_archive()?;
 
         Ok(BuildResult::Success)
     }
 }
 
 impl AwsLambdaPackage {
+    fn build_zip_archive(&self) -> Result<PathBuf> {
+        let archive_path = self.target_dir.join("aws-lambda.zip");
+        let mut archive = zip::ZipWriter::new(
+            std::fs::File::create(&archive_path)
+                .map_err(|err| Error::new("failed to create zip archive file").with_source(err))?,
+        );
+
+        for entry in WalkDir::new(&self.lambda_root) {
+            let entry = entry.map_err(|err| {
+                Error::new("failed to walk lambda root directory").with_source(err)
+            })?;
+
+            let file_path = entry
+                .path()
+                .strip_prefix(&self.lambda_root)
+                .map_err(|err| {
+                    Error::new("failed to strip lambda root directory").with_source(err)
+                })?
+                .display()
+                .to_string();
+
+            let metadata = std::fs::metadata(entry.path())
+                .map_err(|err| Error::new("failed to get metadata").with_source(err))?;
+
+            let mut options = zip::write::FileOptions::default();
+
+            if !cfg!(windows) {
+                use std::os::unix::prelude::PermissionsExt;
+
+                options = options.unix_permissions(metadata.permissions().mode());
+            }
+
+            if metadata.is_file() {
+                archive.start_file(&file_path, options).map_err(|err| {
+                    Error::new("failed to start writing file in the archive")
+                        .with_source(err)
+                        .with_output(format!("file path: {}", file_path))
+                })?;
+
+                let buf = std::fs::read(entry.path())
+                    .map_err(|err| Error::new("failed to open file").with_source(err))?;
+
+                archive.write_all(&buf).map_err(|err| {
+                    Error::new("failed to write file in the archive")
+                        .with_source(err)
+                        .with_output(format!("file path: {}", file_path))
+                })?;
+            } else if metadata.is_dir() {
+                archive.add_directory(&file_path, options).map_err(|err| {
+                    Error::new("failed to add directory to the archive")
+                        .with_source(err)
+                        .with_output(format!("file path: {}", file_path))
+                })?;
+            }
+        }
+
+        archive
+            .finish()
+            .map_err(|err| Error::new("failed to write zip archive file").with_source(err))?;
+
+        Ok(archive_path)
+    }
+
     fn build_binary(&self) -> Result<PathBuf> {
         let config = cargo::util::config::Config::default().unwrap();
 
@@ -110,6 +178,16 @@ impl AwsLambdaPackage {
                     self.binary
                 ),
             )?;
+
+        Ok(())
+    }
+
+    fn clean(&self) -> Result<()> {
+        debug!("Will now clean the build directory");
+
+        std::fs::remove_dir_all(&self.lambda_root).map_err(|err| {
+            Error::new("failed to clean the lambda root directory").with_source(err)
+        })?;
 
         Ok(())
     }

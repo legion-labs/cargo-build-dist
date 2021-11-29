@@ -52,6 +52,8 @@ impl DistTarget for DockerPackage {
             ));
         }
 
+        self.clean()?;
+
         let binaries = self.build_binaries()?;
         let dockerfile = self.write_dockerfile(&binaries)?;
         self.copy_binaries(&binaries)?;
@@ -378,6 +380,16 @@ impl DockerPackage {
                     ),
                 )?;
         }
+
+        Ok(())
+    }
+
+    fn clean(&self) -> Result<()> {
+        debug!("Will now clean the build directory");
+
+        std::fs::remove_dir_all(&self.docker_root).map_err(|err| {
+            Error::new("failed to clean the docker root directory").with_source(err)
+        })?;
 
         Ok(())
     }
