@@ -45,12 +45,25 @@ There are several types of configurations available, depending on your distribut
 
 The sections hereafter describe the configuration for each type.
 
+### AWS Lambda
+
+```toml
+[package.metadata.build-dist.simple-lambda]
+type = "aws-lambda"
+s3_bucket = "some-s3-bucket"
+binary = "my-binary" # Optional. The name of the binary to package for this lambda. Required only if the crate contains more than one binary.
+extra_files = [ # A list of extra files to copy into the Docker image.
+    { source = "src/test/*", destination = "/usr/src/app/" }
+]
+```
+
 ### Docker
 
 ```toml
 [package.metadata.build-dist.your-image-name]
 type = "docker"
 registry = "1234.dkr.ecr.ca-central-1.amazonaws.com"
+target_runtime="x86_64-unknown-linux-gnu" # Optional, defaults to "x86_64-unknown-linux-gnu". The target runtime for the generated binaries. You probably don't need to change this.
 allow_aws_ecr_creation = true # Optional, defaults to false. Allows the creation of AWS ECR repositories for the image.
 target_bin_dir = "/usr/src/app/bin/" # Optional. The target directory in which to place the binaries. Defaults to "/bin".
 template = """
@@ -59,8 +72,8 @@ FROM ubuntu:20.04
 {{ copy_all_extra_files }}
 CMD [{{ binaries.0 }}]
 """
-extra_copies = [ # A list of extra files to copy into the Docker image.
-    { source = "src/test/test-file", destination = "/usr/src/app/" }
+extra_files = [ # A list of extra files to copy into the Docker image.
+    { source = "src/test/*", destination = "/usr/src/app/" }
 ]
 ```
 
