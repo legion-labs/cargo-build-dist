@@ -21,29 +21,30 @@ doc = false
 [dependencies]
 anyhow = "1.0"
 atty = "0.2"
-cargo = "0.57"
-cargo_toml = "0.9"
-cargo_metadata = "0.14.0"
-clap = "2"
-serde = "1"
-serde_json = "1"
-serde-value = "0.7"
-serde_path_to_error = "0.1"
-tera = "1"
-itertools = "0.10"
-sha2 = "0.9"
-thiserror = "1.0"
-futures = { version = "0.3.*" }
-tokio = { version = "1", features = ["full"] }
 aws_config = { git = "https://github.com/awslabs/aws-sdk-rust", tag = "v0.0.25-alpha", package = "aws-config" }
-aws_sdk_s3 = { git = "https://github.com/awslabs/aws-sdk-rust", tag = "v0.0.25-alpha", package = "aws-sdk-s3" }
 aws_sdk_ecr = { git = "https://github.com/awslabs/aws-sdk-rust", tag = "v0.0.25-alpha", package = "aws-sdk-ecr" }
+aws_sdk_s3 = { git = "https://github.com/awslabs/aws-sdk-rust", tag = "v0.0.25-alpha", package = "aws-sdk-s3" }
 base64 = { version = "0.13.0" }
-termcolor = "1.1"
-log = "0.4.0"
+cargo = "0.57"
+cargo_metadata = "0.14.0"
+cargo_toml = "0.9"
+clap = "2"
 env_logger = "0.8.4"
-regex = "1"
-glob = "0.3"
 fs_extra = "1.2"
+futures = { version = "0.3.*" }
+glob = "0.3"
+itertools = "0.10"
+log = "0.4.0"
+openssl = { version = "0.10", features = ["vendored"] }
+regex = "1"
+serde = "1"
+serde-value = "0.7"
+serde_json = "1"
+serde_path_to_error = "0.1"
+sha2 = "0.9"
+tera = "1"
+termcolor = "1.1"
+thiserror = "1.0"
+tokio = { version = "1", features = ["full"] }
 walkdir = "2"
 zip = "0.5"
