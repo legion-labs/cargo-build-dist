@@ -11,6 +11,7 @@ const ARG_RELEASE: &str = "release";
 const ARG_MANIFEST_PATH: &str = "manifest-path";
 const ARG_VERBOSE: &str = "verbose";
 const ARG_DRY_RUN: &str = "dry-run";
+const ARG_FORCE: &str = "force";
 
 fn main() {
     if let Err(e) = run() {
@@ -106,6 +107,13 @@ fn run() -> Result<()> {
                 .help("Do not really push any artifacts"),
         )
         .arg(
+            Arg::with_name(ARG_FORCE)
+                .short("f")
+                .long(ARG_FORCE)
+                .required(false)
+                .help("Push artifacts even if they already exist - this can be dangerous"),
+        )
+        .arg(
             Arg::with_name(ARG_MANIFEST_PATH)
                 .short("m")
                 .long(ARG_MANIFEST_PATH)
@@ -174,6 +182,7 @@ fn run() -> Result<()> {
 
     let options = BuildOptions {
         dry_run: matches.is_present(ARG_DRY_RUN),
+        force: matches.is_present(ARG_FORCE),
         verbose: matches.is_present(ARG_VERBOSE),
     };
 

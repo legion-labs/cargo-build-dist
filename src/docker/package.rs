@@ -65,11 +65,57 @@ impl DistTarget for DockerPackage {
 }
 
 impl DockerPackage {
+    fn pull_docker_image(
+        &self,
+        docker_image_name: &str,
+        options: &crate::BuildOptions,
+    ) -> Result<bool> {
+        let mut cmd = Command::new("docker");
+
+        debug!(
+            "Will now pull docker image `{}` to check for existence",
+            docker_image_name
+        );
+
+        let args = vec!["pull", &docker_image_name];
+
+        action_step!("Running", "`docker {}`", args.join(" "),);
+
+        cmd.args(args);
+
+        if options.verbose {
+            let status = cmd.status().map_err(Error::from_source).with_full_context(
+                "failed to pull Docker image",
+                "The pull of the Docker image failed which could indicate a configuration problem.",
+            )?;
+
+            Ok(status.success())
+        } else {
+            let output = cmd.output().map_err(Error::from_source).with_full_context(
+                "failed to pull Docker image",
+                "The pull of the Docker image failed which could indicate a configuration problem. You may want to re-run the command with `--verbose` to get more information.",
+            )?;
+
+            Ok(output.status.success())
+        }
+    }
+
     fn push_docker_image(&self, options: &crate::BuildOptions) -> Result<()> {
         let mut cmd = Command::new("docker");
         let docker_image_name = self.docker_image_name();
 
-        debug!("Will now push docker image {}", docker_image_name);
+        if options.force {
+            debug!("`--force` specified: not checking for Docker image existence before pushing")
+        } else if self.pull_docker_image(&docker_image_name, options)? {
+            debug!(
+                "Docker image `{}` already exists: not pushing unless `--force` is specified",
+                docker_image_name
+            );
+
+            return Ok(());
+        }
+
+        debug!("Will now push docker image `{}`", docker_image_name);
 
         let aws_ecr_information = self.get_aws_ecr_information();
 

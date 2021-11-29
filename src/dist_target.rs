@@ -7,6 +7,7 @@ use crate::Result;
 #[derive(Default)]
 pub struct BuildOptions {
     pub dry_run: bool,
+    pub force: bool,
     pub verbose: bool,
 }
 
