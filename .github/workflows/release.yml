@@ -1,5 +1,11 @@
 name: Release
 
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
 jobs:
   build_release:
     name: Building release binaries
