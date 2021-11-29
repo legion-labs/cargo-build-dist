@@ -59,7 +59,7 @@ impl DistTarget for DockerPackage {
         self.copy_binaries(&binaries)?;
         self.copy_extra_files()?;
 
-        self.build_dockerfile(dockerfile, options)?;
+        self.build_dockerfile(&dockerfile, options)?;
         self.push_docker_image(options)?;
 
         Ok(BuildResult::Success)
@@ -67,11 +67,7 @@ impl DistTarget for DockerPackage {
 }
 
 impl DockerPackage {
-    fn pull_docker_image(
-        &self,
-        docker_image_name: &str,
-        options: &crate::BuildOptions,
-    ) -> Result<bool> {
+    fn pull_docker_image(docker_image_name: &str, options: &crate::BuildOptions) -> Result<bool> {
         let mut cmd = Command::new("docker");
 
         debug!(
@@ -79,7 +75,7 @@ impl DockerPackage {
             docker_image_name
         );
 
-        let args = vec!["pull", &docker_image_name];
+        let args = vec!["pull", docker_image_name];
 
         action_step!("Running", "`docker {}`", args.join(" "),);
 
@@ -107,8 +103,8 @@ impl DockerPackage {
         let docker_image_name = self.docker_image_name();
 
         if options.force {
-            debug!("`--force` specified: not checking for Docker image existence before pushing")
-        } else if self.pull_docker_image(&docker_image_name, options)? {
+            debug!("`--force` specified: not checking for Docker image existence before pushing");
+        } else if Self::pull_docker_image(&docker_image_name, options)? {
             debug!(
                 "Docker image `{}` already exists: not pushing unless `--force` is specified",
                 docker_image_name
@@ -248,11 +244,11 @@ impl DockerPackage {
                 );
             }
 
-            return Ok(());
+            Ok(())
         })
     }
 
-    fn build_dockerfile(&self, docker_file: PathBuf, options: &crate::BuildOptions) -> Result<()> {
+    fn build_dockerfile(&self, docker_file: &Path, options: &crate::BuildOptions) -> Result<()> {
         let mut cmd = Command::new("docker");
         let docker_image_name = self.docker_image_name();
 
@@ -352,7 +348,7 @@ impl DockerPackage {
             .map_err(|err| Error::new("failed to compile Docker binaries").with_source(err))
     }
 
-    fn copy_binaries(&self, source_binaries: &Vec<PathBuf>) -> Result<()> {
+    fn copy_binaries(&self, source_binaries: &[PathBuf]) -> Result<()> {
         debug!("Will now copy all dependant binaries");
 
         let docker_target_bin_dir = self.docker_target_bin_dir();
@@ -401,14 +397,14 @@ impl DockerPackage {
     fn copy_extra_files(&self) -> Result<()> {
         debug!("Will now copy all extra files");
 
-        for copy_command in self.metadata.extra_files.iter() {
-            copy_command.copy_files(&self.package_root(), &self.docker_root)?;
+        for copy_command in &self.metadata.extra_files {
+            copy_command.copy_files(self.package_root(), &self.docker_root)?;
         }
 
         Ok(())
     }
 
-    fn write_dockerfile(&self, binaries: &Vec<PathBuf>) -> Result<PathBuf> {
+    fn write_dockerfile(&self, binaries: &[PathBuf]) -> Result<PathBuf> {
         let dockerfile = self.generate_dockerfile(binaries)?;
 
         debug!("Generated Dockerfile:\n{}", dockerfile);
@@ -436,7 +432,7 @@ impl DockerPackage {
         self.docker_root.join("Dockerfile")
     }
 
-    fn generate_context(&self, binaries: &Vec<PathBuf>) -> tera::Context {
+    fn generate_context(&self, binaries: &[PathBuf]) -> tera::Context {
         let mut context = tera::Context::new();
 
         context.insert("package_name", &self.package.name);
@@ -499,7 +495,7 @@ ADD {{ extra_file }} {{ extra_file }}
         context
     }
 
-    fn generate_dockerfile(&self, binaries: &Vec<PathBuf>) -> Result<String> {
+    fn generate_dockerfile(&self, binaries: &[PathBuf]) -> Result<String> {
         let context = self.generate_context(binaries);
 
         tera::Tera::one_off(&self.metadata.template, &context, false)
@@ -521,20 +517,20 @@ impl AwsEcrInformation {
         let re =
             Regex::new(r"^(\d+)\.dkr\.ecr\.([a-z0-9-]+).amazonaws.com/([a-zA-Z0-9-_/]+)$").unwrap();
 
-        let capture = re.captures_iter(input).next();
+        let captures = re.captures_iter(input).next();
 
-        match capture {
-            Some(capture) => Some(AwsEcrInformation {
-                account_id: capture[1].to_string(),
-                region: capture[2].to_string(),
-                repository_name: capture[3].to_string(),
-            }),
-            None => None,
-        }
+        captures.map(|captures| Self {
+            account_id: captures[1].to_string(),
+            region: captures[2].to_string(),
+            repository_name: captures[3].to_string(),
+        })
     }
+}
 
-    pub fn to_string(&self) -> String {
-        format!(
+impl Display for AwsEcrInformation {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
             "{}.dkr.ecr.{}.amazonaws.com/{}",
             self.account_id, self.region, self.repository_name
         )

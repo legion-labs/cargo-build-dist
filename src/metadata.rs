@@ -32,7 +32,7 @@ impl Target {
     pub fn into_dist_target(
         self,
         name: String,
-        target_root: &PathBuf,
+        target_root: &Path,
         mode: &Mode,
         package: &cargo_metadata::Package,
     ) -> crate::Result<Box<dyn DistTarget>> {
@@ -163,7 +163,7 @@ impl CopyCommand {
 
         let options = fs_extra::dir::CopyOptions {
             overwrite: true,
-            ..Default::default()
+            ..fs_extra::dir::CopyOptions::default()
         };
 
         fs_extra::copy_items(&source_files, &destination, &options)

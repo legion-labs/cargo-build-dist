@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use log::debug;
 use serde::Deserialize;
@@ -34,7 +34,7 @@ impl DockerMetadata {
     pub fn into_dist_target(
         self,
         name: String,
-        target_root: &PathBuf,
+        target_root: &Path,
         mode: &Mode,
         package: &cargo_metadata::Package,
     ) -> Result<DockerPackage> {
@@ -74,11 +74,11 @@ impl DockerMetadata {
         let mode = mode.clone();
 
         Ok(DockerPackage {
-            name: name,
+            name,
             version: package.version.to_string(),
             toml_path: package.manifest_path.clone().into(),
             metadata: self,
-            target_dir: target_dir,
+            target_dir,
             docker_root,
             mode,
             package: package.clone(),

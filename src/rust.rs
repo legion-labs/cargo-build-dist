@@ -41,16 +41,16 @@ pub fn get_current_target_runtime() -> Result<String> {
         if let Some((key, value)) = line.split_once('=') {
             match key {
                 "target_arch" => {
-                    arch = Some(unquote(value).with_context("failed to unquote target_arch")?)
+                    arch = Some(unquote(value).with_context("failed to unquote target_arch")?);
                 }
                 "target_vendor" => {
-                    vendor = Some(unquote(value).with_context("failed to unquote target_vendor")?)
+                    vendor = Some(unquote(value).with_context("failed to unquote target_vendor")?);
                 }
                 "target_os" => {
-                    os = Some(unquote(value).with_context("failed to unquote target_os")?)
+                    os = Some(unquote(value).with_context("failed to unquote target_os")?);
                 }
                 "target_env" => {
-                    env = Some(unquote(value).with_context("failed to unquote target_env")?)
+                    env = Some(unquote(value).with_context("failed to unquote target_env")?);
                 }
                 _ => (),
             }
@@ -61,11 +61,11 @@ pub fn get_current_target_runtime() -> Result<String> {
         (Some(arch), Some(vendor), Some(os), Some(env)) => {
             let mut target = arch.to_string();
 
-            target.push_str("-");
+            target.push('-');
             target.push_str(vendor);
-            target.push_str("-");
+            target.push('-');
             target.push_str(os);
-            target.push_str("-");
+            target.push('-');
             target.push_str(env);
 
             Ok(target)

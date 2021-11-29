@@ -91,7 +91,7 @@ impl AwsLambdaPackage {
             );
 
             if options.force {
-                debug!("`--force` specified: not checking for the archive existence on S3 before uploading")
+                debug!("`--force` specified: not checking for the archive existence on S3 before uploading");
             } else {
                 let resp = client
                     .get_object()
@@ -293,8 +293,8 @@ impl AwsLambdaPackage {
     fn copy_extra_files(&self) -> Result<()> {
         debug!("Will now copy all extra files");
 
-        for copy_command in self.metadata.extra_files.iter() {
-            copy_command.copy_files(&self.package_root(), &self.lambda_root)?;
+        for copy_command in &self.metadata.extra_files {
+            copy_command.copy_files(self.package_root(), &self.lambda_root)?;
         }
 
         Ok(())

@@ -23,7 +23,7 @@ pub fn print_step(color: Color, action: &str, description: impl Display) {
         )
         .unwrap();
         stdout.reset().unwrap();
-        write!(&mut stdout, " {}\n", description).unwrap();
+        writeln!(&mut stdout, " {}", description).unwrap();
     } else {
         println!(
             "{}{} {}",

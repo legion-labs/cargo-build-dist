@@ -4,7 +4,13 @@
 use cargo_metadata::PackageId;
 use log::debug;
 use sha2::{Digest, Sha256};
-use std::{cmp::Ordering, collections::BTreeSet, fmt::Display, path::PathBuf, time::Instant};
+use std::{
+    cmp::Ordering,
+    collections::BTreeSet,
+    fmt::Display,
+    path::{Path, PathBuf},
+    time::Instant,
+};
 
 use crate::{
     action_step,
@@ -23,9 +29,9 @@ pub enum Mode {
 impl Mode {
     pub fn from_release_flag(release_flag: bool) -> Self {
         if release_flag {
-            Mode::Release
+            Self::Release
         } else {
-            Mode::Debug
+            Self::Debug
         }
     }
 }
@@ -56,12 +62,12 @@ impl ContextBuilder {
         debug!("Building context.");
 
         let metadata = self.get_metadata()?;
-        let target_root = self.get_target_root(&metadata);
+        let target_root = Self::get_target_root(&metadata);
 
         debug!("Using target directory: {}", target_root.display());
 
-        let packages = self.scan_packages(&metadata)?;
-        let dist_targets = self.resolve_dist_targets(metadata, &target_root, packages)?;
+        let packages = Self::scan_packages(&metadata)?;
+        let dist_targets = self.resolve_dist_targets(&metadata, &target_root, packages)?;
 
         Ok(Context::new(dist_targets))
     }
@@ -98,7 +104,7 @@ impl ContextBuilder {
         Ok(self
             .get_dependencies_from_resolve(resolve, package_id)?
             .map(|package_id| {
-                let package = &metadata[&package_id];
+                let package = &metadata[package_id];
                 Dependency {
                     name: package.name.clone(),
                     version: package.version.to_string(),
@@ -143,8 +149,8 @@ impl ContextBuilder {
 
     fn resolve_dist_targets(
         &self,
-        metadata: cargo_metadata::Metadata,
-        target_root: &PathBuf,
+        metadata: &cargo_metadata::Metadata,
+        target_root: &Path,
         packages: impl IntoIterator<Item = (PackageId, Metadata)>,
     ) -> Result<Vec<Box<dyn DistTarget>>> {
         packages
@@ -157,7 +163,7 @@ impl ContextBuilder {
                 if let Some(deps_hash) = package_metadata.deps_hash {
                     debug!("Package has a dependency hash specified: making sure it is up-to-date.");
 
-                    let dependencies = self.get_dependencies(&metadata, &package.id)?;
+                    let dependencies = self.get_dependencies(metadata, &package.id)?;
 
                     match dependencies.len() {
                         0 => debug!("Package has no dependencies"),
@@ -178,9 +184,9 @@ impl ContextBuilder {
                     if current_deps_hash != deps_hash {
                         return Err(
                             Error::new("dependencies hash does not match")
-                            .with_explanation(format!("The specified dependency hash does not match the actual computed version.\n\n\
+                            .with_explanation("The specified dependency hash does not match the actual computed version.\n\n\
                             This may indicate that some dependencies have changed and may require a major/minor version bump. \n\n\
-                            Please validate this and update the dependencies hash to confirm the new dependencies."))
+                            Please validate this and update the dependencies hash to confirm the new dependencies.")
                             .with_output(format!(
                                 "Expected: {}\n  \
                                 Actual: {}",
@@ -196,7 +202,7 @@ impl ContextBuilder {
                 let mut dist_targets: Vec<Box<dyn DistTarget>> = vec![];
 
                 for (name, target) in package_metadata.targets {
-                    dist_targets.push(target.into_dist_target(name.clone(), &target_root,&self.mode,&package)?)
+                    dist_targets.push(target.into_dist_target(name.clone(), target_root, &self.mode, package)?);
                 }
 
                 Ok(dist_targets)
@@ -208,10 +214,7 @@ impl ContextBuilder {
             .collect()
     }
 
-    fn scan_packages(
-        &self,
-        metadata: &cargo_metadata::Metadata,
-    ) -> Result<Vec<(PackageId, Metadata)>> {
+    fn scan_packages(metadata: &cargo_metadata::Metadata) -> Result<Vec<(PackageId, Metadata)>> {
         metadata
             .workspace_members
             .iter()
@@ -235,16 +238,15 @@ impl ContextBuilder {
                     }
                 };
 
-                let metadata = match metadata.get("build-dist") {
-                    Some(metadata) => metadata,
-                    None => {
-                        debug!(
-                            "Ignoring package without `build-dist` metadata: {}",
-                            package_id
-                        );
+                let metadata = if let Some(metadata) = metadata.get("build-dist") {
+                    metadata
+                } else {
+                    debug!(
+                        "Ignoring package without `build-dist` metadata: {}",
+                        package_id
+                    );
 
-                        return None;
-                    }
+                    return None;
                 };
 
                 debug!("Considering package {} {}", package.name, package.version);
@@ -266,7 +268,7 @@ impl ContextBuilder {
             .collect()
     }
 
-    fn get_target_root(&self, metadata: &cargo_metadata::Metadata) -> PathBuf {
+    fn get_target_root(metadata: &cargo_metadata::Metadata) -> PathBuf {
         PathBuf::from(metadata.target_directory.as_path())
     }
 
@@ -323,7 +325,7 @@ impl Context {
                 x,
                 dist_targets
                     .iter()
-                    .map(|d| d.to_string())
+                    .map(ToString::to_string)
                     .collect::<Vec<String>>()
                     .join(", "),
             ),
@@ -332,7 +334,7 @@ impl Context {
         Self { dist_targets }
     }
 
-    pub fn build(&self, options: BuildOptions) -> Result<()> {
+    pub fn build(&self, options: &BuildOptions) -> Result<()> {
         match self.dist_targets.len() {
             0 => {}
             1 => action_step!("Processing", "one distribution target",),
@@ -343,7 +345,7 @@ impl Context {
             action_step!("Building", dist_target.to_string());
             let now = Instant::now();
 
-            match dist_target.build(&options)? {
+            match dist_target.build(options)? {
                 BuildResult::Success => {
                     action_step!(
                         "Finished",

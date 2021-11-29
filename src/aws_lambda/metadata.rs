@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::path::Path;
 
 use log::debug;
 use serde::Deserialize;
@@ -29,7 +29,7 @@ impl AwsLambdaMetadata {
     pub fn into_dist_target(
         self,
         name: String,
-        target_root: &PathBuf,
+        target_root: &Path,
         mode: &Mode,
         package: &cargo_metadata::Package,
     ) -> Result<AwsLambdaPackage> {
@@ -73,9 +73,9 @@ impl AwsLambdaMetadata {
                         ),
                     ),
                 );
-            } else {
-                binaries[0].clone()
             }
+
+            binaries[0].clone()
         } else if !binaries.contains(&self.binary) {
             return Err(
                 Error::new("package contains no binary with the specified name").with_explanation(
@@ -94,12 +94,12 @@ impl AwsLambdaMetadata {
         let mode = mode.clone();
 
         Ok(AwsLambdaPackage {
-            name: name,
+            name,
             version: package.version.to_string(),
             toml_path: package.manifest_path.clone().into(),
             binary,
             metadata: self,
-            target_dir: target_dir.clone(),
+            target_dir,
             lambda_root,
             mode,
             package: package.clone(),
