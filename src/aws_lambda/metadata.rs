@@ -9,6 +9,10 @@ use crate::{aws_lambda::AwsLambdaPackage, metadata::CopyCommand, Error, Mode, Re
 #[serde(deny_unknown_fields)]
 pub struct AwsLambdaMetadata {
     pub s3_bucket: String,
+    #[serde(default)]
+    pub region: Option<String>,
+    #[serde(default)]
+    pub s3_bucket_prefix: String,
     #[serde(default = "default_target_runtime")]
     pub target_runtime: String,
     #[serde(default)]

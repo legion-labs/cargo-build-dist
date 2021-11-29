@@ -66,6 +66,8 @@ deps_hash = "68e0fa4ba2903f04582cedb135190f6448a36553cb5065cd7031be549b7ca53c"
 [package.metadata.build-dist.simple-lambda]
 type = "aws-lambda"
 s3_bucket = "some-s3-bucket"
+s3_bucket_prefix = "some/prefix/" # Optional. A prefix to use in the S3 bucket in front of the generated artifacts.
+region = "ca-central-1" # Optional. The AWS region to use. Defaults to the region of the AWS CLI.
 binary = "my-binary" # Optional. The name of the binary to package for this lambda. Required only if the crate contains more than one binary.
 extra_files = [ # A list of extra files to copy into the Docker image.
     { source = "src/test/*", destination = "/usr/src/app/" }
