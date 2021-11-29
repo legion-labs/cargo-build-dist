@@ -75,6 +75,12 @@ fn main() {
 }
 
 fn run() -> Result<()> {
+    let mut args: Vec<String> = std::env::args().collect();
+
+    if args.len() == 2 && args[1] == "build-dist" {
+        args.remove(0);
+    }
+
     let matches = App::new("cargo build-dist")
         .version(env!("CARGO_PKG_VERSION"))
         .author("Legion Labs <devs@legionlabs.com>")
@@ -121,7 +127,7 @@ fn run() -> Result<()> {
                 .required(false)
                 .help("Path to Cargo.toml"),
         )
-        .get_matches();
+        .get_matches_from(args);
 
     let mut log_level = log::LevelFilter::Off;
 
