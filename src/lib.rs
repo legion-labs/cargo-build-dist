@@ -60,6 +60,7 @@ mod dist_target;
 mod docker;
 mod errors;
 mod metadata;
+mod rust;
 mod term;
 
 pub use context::*;

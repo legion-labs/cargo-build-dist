@@ -11,6 +11,7 @@ use log::debug;
 
 use crate::{
     dist_target::{BuildResult, DistTarget},
+    rust::is_current_target_runtime,
     Error, ErrorContext, Mode, Result,
 };
 
@@ -72,10 +73,13 @@ impl AwsLambdaPackage {
         compile_options.spec = cargo::ops::Packages::Packages(vec![self.package.name.clone()]);
         compile_options.build_config.requested_profile =
             cargo::util::interning::InternedString::new(&self.mode.to_string());
-        compile_options.build_config.requested_kinds =
-            vec![cargo::core::compiler::CompileKind::Target(
-                CompileTarget::new(&self.metadata.target_runtime).unwrap(),
-            )];
+
+        if !is_current_target_runtime(&self.metadata.target_runtime)? {
+            compile_options.build_config.requested_kinds =
+                vec![cargo::core::compiler::CompileKind::Target(
+                    CompileTarget::new(&self.metadata.target_runtime).unwrap(),
+                )];
+        }
 
         compile(&ws, &compile_options)
             .map(|compilation| compilation.binaries[0].path.clone())
