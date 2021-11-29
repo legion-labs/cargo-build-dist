@@ -45,6 +45,21 @@ There are several types of configurations available, depending on your distribut
 
 The sections hereafter describe the configuration for each type.
 
+### Dependency check
+
+`cargo build-dist` will check the dependencies of the crate to detect version bumps.
+
+If a dependency hash is specified in the manifest, it will be checked against
+the current dependency hash. In case of mismatch, `cargo build-dist` will abort
+its execution and let you know that a version bump may be necessary. To solve
+the conflict, simply update the dependency hash with the one given by `cargo
+build-dist`.
+
+```toml
+[package.metadata.build-dist]
+deps_hash = "68e0fa4ba2903f04582cedb135190f6448a36553cb5065cd7031be549b7ca53c"
+```
+
 ### AWS Lambda
 
 ```toml
@@ -56,6 +71,8 @@ extra_files = [ # A list of extra files to copy into the Docker image.
     { source = "src/test/*", destination = "/usr/src/app/" }
 ]
 ```
+
+This will package an AWS Lambda and push it to the specified S3 bucket.
 
 ### Docker
 
@@ -89,3 +106,12 @@ CMD [/usr/src/app/bin/simple]
 This image will have the image name:
 `1234.dkr.ecr.ca-central-1.amazonaws.com/your-image-name` and your current crate
 version.
+
+#### Note on AWS ECR registries
+
+If the registry is hosted on ECR, the tool will detect it automatically (based
+on the naming convention for ECR registries) and if `allow_aws_ecr_creation` is
+set to `true`, it will make sure an AWS ECR repository exists for the image.
+
+This requires that the caller has AWS credentials set up with the appropriate
+permissions.
