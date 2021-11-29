@@ -1,0 +1,29 @@
+name: Release
+
+jobs:
+  build_release:
+    name: Building release binaries
+    runs-on: [self-hosted, linux, common, build]
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Check
+        run: make check
+
+      - name: Build
+        run: make build
+
+      - name: Test
+        run: make test
+
+      - name: Upload release artifacts
+        if: github.ref == 'refs/heads/main'
+        uses: actions/upload-artifact@v2
+        with:
+          name: release
+          path: |
+            ./target/release
+            !./target/release/build
+            !./target/release/deps
+            !./target/release/incremental
+          retention-days: 5

@@ -1,0 +1,10 @@
+{
+    "ignoreRegExpList": [
+        "clippy::[a-z_]+"
+    ],
+    "words": [
+        "bincode",
+        "Graphviz",
+        "thiserror"
+    ]
+}
