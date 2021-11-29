@@ -5,24 +5,33 @@ pub const ACTION_STEP_COLOR: Color = Color::Green;
 pub const IGNORE_STEP_COLOR: Color = Color::Yellow;
 
 pub fn print_step(color: Color, action: &str, description: impl Display) {
-    let mut stdout = StandardStream::stderr(ColorChoice::Always);
-    stdout
-        .set_color(
-            ColorSpec::new()
-                .set_fg(Some(color))
-                .set_intense(true)
-                .set_bold(true),
+    if atty::is(atty::Stream::Stdout) {
+        let mut stdout = StandardStream::stdout(ColorChoice::Always);
+        stdout
+            .set_color(
+                ColorSpec::new()
+                    .set_fg(Some(color))
+                    .set_intense(true)
+                    .set_bold(true),
+            )
+            .unwrap();
+        write!(
+            &mut stdout,
+            "{}{}",
+            (0..(12 - action.len())).map(|_| " ").collect::<String>(),
+            action
         )
         .unwrap();
-    write!(
-        &mut stdout,
-        "{}{}",
-        (0..(12 - action.len())).map(|_| " ").collect::<String>(),
-        action
-    )
-    .unwrap();
-    stdout.reset().unwrap();
-    write!(&mut stdout, " {}\n", description).unwrap();
+        stdout.reset().unwrap();
+        write!(&mut stdout, " {}\n", description).unwrap();
+    } else {
+        println!(
+            "{}{} {}",
+            (0..(12 - action.len())).map(|_| " ").collect::<String>(),
+            action,
+            description
+        );
+    }
 }
 
 #[macro_export]

@@ -480,6 +480,7 @@ name = "cargo-build-dist"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "atty",
  "aws-config",
  "aws-sdk-ecr",
  "base64",
