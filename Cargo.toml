@@ -4,7 +4,14 @@ members = ["examples/*"]
 [package]
 name = "cargo-build-dist"
 version = "0.1.0"
-edition = "2018"
+authors = ["Legion Labs <devs@legionlabs.com>"]
+edition = "2021"
+license = "MIT OR Apache-2.0"
+description = "A cargo extension that helps with building distribution packages in various formats"
+homepage = "https://github.com/legion-labs/cargo-build-dist"
+repository = "https://github.com/legion-labs/cargo-build-dist"
+keywords = ["cargo", "packaging", "distribution"]
+categories = ["command-line-utilities", "development-tools::cargo-plugins"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
