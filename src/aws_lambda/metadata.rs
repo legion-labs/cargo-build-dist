@@ -8,6 +8,7 @@ use crate::{aws_lambda::AwsLambdaPackage, metadata::CopyCommand, Error, Result};
 #[derive(Debug, Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct AwsLambdaMetadata {
+    #[serde(deserialize_with = "deserialize_s3_bucket")]
     pub s3_bucket: String,
     #[serde(default)]
     pub region: Option<String>,
@@ -21,6 +22,23 @@ pub struct AwsLambdaMetadata {
     pub extra_files: Vec<CopyCommand>,
 }
 
+pub const DEFAULT_AWS_LAMBDA_S3_BUCKET_ENV_VAR_NAME: &str = "CARGO_BUILD_DIST_AWS_LAMBDA_S3_BUCKET";
+
+fn deserialize_s3_bucket<'de, D>(deserializer: D) -> std::result::Result<String, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    match String::deserialize(deserializer) {
+        Ok(registry) => Ok(registry),
+        Err(err) => {
+            if let Ok(registry) = std::env::var(DEFAULT_AWS_LAMBDA_S3_BUCKET_ENV_VAR_NAME) {
+                Ok(registry)
+            } else {
+                Err(err)
+            }
+        }
+    }
+}
 fn default_target_runtime() -> String {
     "x86_64-unknown-linux-musl".to_string()
 }
