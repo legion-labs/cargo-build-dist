@@ -18,15 +18,21 @@ on mono-repos, like the one Legion Labs maintains.
 ## How to use it
 
 ```bash
+cargo build-dist 0.1.0
+Legion Labs <devs@legionlabs.com>
+Build distributable artifacts from cargo crates.
+
 USAGE:
-    cargo build-dist [FLAGS] [OPTIONS] [SUBCOMMAND]
+    cargo-build-dist [FLAGS] [OPTIONS]
 
 FLAGS:
     -d, --debug      Print debug information verbosely
+    -n, --dry-run    Do not really push any artifacts
+    -f, --force      Push artifacts even if they already exist - this can be dangerous
     -h, --help       Prints help information
+        --release    Use release build artifacts
     -V, --version    Prints version information
     -v, --verbose    Print debug information verbosely
-    -n, --dry-run    Print what would be done but don't actually do it
 
 OPTIONS:
     -m, --manifest-path <manifest-path>    Path to Cargo.toml
