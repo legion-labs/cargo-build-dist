@@ -3,7 +3,7 @@ use std::path::Path;
 use log::debug;
 use serde::Deserialize;
 
-use crate::{aws_lambda::AwsLambdaPackage, metadata::CopyCommand, Error, Mode, Result};
+use crate::{aws_lambda::AwsLambdaPackage, metadata::CopyCommand, Error, Result};
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -30,15 +30,9 @@ impl AwsLambdaMetadata {
         self,
         name: String,
         target_root: &Path,
-        mode: &Mode,
         package: &cargo_metadata::Package,
     ) -> Result<AwsLambdaPackage> {
         debug!("Package has an AWS Lambda target distribution.");
-
-        let target_dir = target_root
-            .join(&self.target_runtime)
-            .join(mode.to_string());
-        let lambda_root = target_dir.join("aws-lambda").join(&package.name);
 
         let binaries: Vec<_> = package
             .targets
@@ -91,17 +85,13 @@ impl AwsLambdaMetadata {
 
         debug!("Package uses the following binary: {}", binary);
 
-        let mode = mode.clone();
-
         Ok(AwsLambdaPackage {
             name,
             version: package.version.to_string(),
             toml_path: package.manifest_path.clone().into(),
             binary,
             metadata: self,
-            target_dir,
-            lambda_root,
-            mode,
+            target_root: target_root.to_path_buf(),
             package: package.clone(),
         })
     }

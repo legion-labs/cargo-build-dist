@@ -10,7 +10,7 @@ use log::debug;
 use serde::{Deserialize, Deserializer};
 
 use crate::{
-    aws_lambda::AwsLambdaMetadata, docker::DockerMetadata, DistTarget, Error, ErrorContext, Mode,
+    aws_lambda::AwsLambdaMetadata, docker::DockerMetadata, DistTarget, Error, ErrorContext,
 };
 
 /// The root metadata structure.
@@ -32,19 +32,20 @@ impl Target {
         self,
         name: String,
         target_root: &Path,
-        mode: &Mode,
         package: &cargo_metadata::Package,
     ) -> crate::Result<Box<dyn DistTarget>> {
         match self {
-            Self::Docker(metadata) => metadata
-                .into_dist_target(name, target_root, mode, package)
-                .map(|target| {
-                    let x: Box<dyn DistTarget> = Box::new(target);
+            Self::Docker(metadata) => {
+                metadata
+                    .into_dist_target(name, target_root, package)
+                    .map(|target| {
+                        let x: Box<dyn DistTarget> = Box::new(target);
 
-                    x
-                }),
+                        x
+                    })
+            }
             Target::AwsLambda(metadata) => metadata
-                .into_dist_target(name, target_root, mode, package)
+                .into_dist_target(name, target_root, package)
                 .map(|target| {
                     let x: Box<dyn DistTarget> = Box::new(target);
 

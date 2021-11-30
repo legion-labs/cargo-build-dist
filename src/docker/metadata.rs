@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 use log::debug;
 use serde::Deserialize;
 
-use crate::{metadata::CopyCommand, Error, ErrorContext, Mode, Result};
+use crate::{metadata::CopyCommand, Error, ErrorContext, Result};
 
 use super::DockerPackage;
 
@@ -35,13 +35,9 @@ impl DockerMetadata {
         self,
         name: String,
         target_root: &Path,
-        mode: &Mode,
         package: &cargo_metadata::Package,
     ) -> Result<DockerPackage> {
         debug!("Package has a Docker target distribution.");
-
-        let target_dir = target_root.join(mode.to_string());
-        let docker_root = target_dir.join("docker").join(&package.name);
 
         let binaries: Vec<_> = package
             .targets
@@ -71,16 +67,12 @@ impl DockerMetadata {
                 "The specified Dockerfile template could not be parsed, which may indicate a possible syntax error."
             )?;
 
-        let mode = mode.clone();
-
         Ok(DockerPackage {
             name,
             version: package.version.to_string(),
             toml_path: package.manifest_path.clone().into(),
             metadata: self,
-            target_dir,
-            docker_root,
-            mode,
+            target_root: target_root.to_path_buf(),
             package: package.clone(),
         })
     }

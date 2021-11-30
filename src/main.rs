@@ -227,7 +227,7 @@ fn run() -> Result<()> {
         }
     }
 
-    let mut context_builder = Context::builder().with_mode(mode);
+    let mut context_builder = Context::builder();
 
     let manifest_path = matches.value_of(ARG_MANIFEST_PATH).map(PathBuf::from);
 
@@ -255,6 +255,7 @@ fn run() -> Result<()> {
         dry_run: matches.is_present(ARG_DRY_RUN),
         force: matches.is_present(ARG_FORCE),
         verbose: matches.is_present(ARG_VERBOSE),
+        mode,
     };
 
     context.build(&options)

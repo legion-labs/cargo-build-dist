@@ -14,8 +14,8 @@ use log::{debug, warn};
 use regex::Regex;
 
 use crate::{
-    action_step, rust::is_current_target_runtime, BuildResult, DistTarget, Error, ErrorContext,
-    Mode, Result,
+    action_step, rust::is_current_target_runtime, BuildOptions, BuildResult, DistTarget, Error,
+    ErrorContext, Result,
 };
 
 use super::DockerMetadata;
@@ -26,9 +26,7 @@ pub struct DockerPackage {
     pub version: String,
     pub toml_path: PathBuf,
     pub metadata: DockerMetadata,
-    pub target_dir: PathBuf,
-    pub docker_root: PathBuf,
-    pub mode: Mode,
+    pub target_root: PathBuf,
     pub package: cargo_metadata::Package,
 }
 
@@ -50,14 +48,14 @@ impl DistTarget for DockerPackage {
             ));
         }
 
-        self.clean()?;
+        self.clean(options)?;
 
-        let binaries = self.build_binaries()?;
-        let dockerfile = self.write_dockerfile(&binaries)?;
-        self.copy_binaries(&binaries)?;
-        self.copy_extra_files()?;
+        let binaries = self.build_binaries(options)?;
+        let dockerfile = self.write_dockerfile(options, &binaries)?;
+        self.copy_binaries(options, &binaries)?;
+        self.copy_extra_files(options)?;
 
-        self.build_dockerfile(&dockerfile, options)?;
+        self.build_dockerfile(options, &dockerfile)?;
         self.push_docker_image(options)?;
 
         Ok(BuildResult::Success)
@@ -246,7 +244,7 @@ impl DockerPackage {
         })
     }
 
-    fn build_dockerfile(&self, docker_file: &Path, options: &crate::BuildOptions) -> Result<()> {
+    fn build_dockerfile(&self, options: &crate::BuildOptions, docker_file: &Path) -> Result<()> {
         let mut cmd = Command::new("docker");
         let docker_image_name = self.docker_image_name();
 
@@ -305,17 +303,27 @@ impl DockerPackage {
         AwsEcrInformation::from_string(&format!("{}/{}", self.metadata.registry, self.package.name))
     }
 
-    fn docker_target_bin_dir(&self) -> PathBuf {
+    fn target_dir(&self, options: &BuildOptions) -> PathBuf {
+        self.target_root.join(options.mode.to_string())
+    }
+
+    fn docker_root(&self, options: &BuildOptions) -> PathBuf {
+        self.target_dir(options)
+            .join("docker")
+            .join(&self.package.name)
+    }
+
+    fn docker_target_bin_dir(&self, options: &BuildOptions) -> PathBuf {
         let relative_target_bin_dir = self
             .metadata
             .target_bin_dir
             .strip_prefix("/")
             .unwrap_or(&self.metadata.target_bin_dir);
 
-        self.docker_root.join(relative_target_bin_dir)
+        self.docker_root(options).join(relative_target_bin_dir)
     }
 
-    fn build_binaries(&self) -> Result<Vec<PathBuf>> {
+    fn build_binaries(&self, options: &BuildOptions) -> Result<Vec<PathBuf>> {
         let config = cargo::util::config::Config::default().unwrap();
 
         let ws =
@@ -326,7 +334,7 @@ impl DockerPackage {
 
         compile_options.spec = cargo::ops::Packages::Packages(vec![self.package.name.clone()]);
         compile_options.build_config.requested_profile =
-            cargo::util::interning::InternedString::new(&self.mode.to_string());
+            cargo::util::interning::InternedString::new(&options.mode.to_string());
 
         if !is_current_target_runtime(&self.metadata.target_runtime)? {
             compile_options.build_config.requested_kinds =
@@ -346,10 +354,10 @@ impl DockerPackage {
             .map_err(|err| Error::new("failed to compile Docker binaries").with_source(err))
     }
 
-    fn copy_binaries(&self, source_binaries: &[PathBuf]) -> Result<()> {
+    fn copy_binaries(&self, options: &BuildOptions, source_binaries: &[PathBuf]) -> Result<()> {
         debug!("Will now copy all dependant binaries");
 
-        let docker_target_bin_dir = self.docker_target_bin_dir();
+        let docker_target_bin_dir = self.docker_target_bin_dir(options);
 
         std::fs::create_dir_all(&docker_target_bin_dir)
             .map_err(Error::from_source)
@@ -360,7 +368,7 @@ impl DockerPackage {
 
         for source in source_binaries {
             let binary = source.file_name().unwrap().to_string_lossy().to_string();
-            let target = self.docker_target_bin_dir().join(&binary);
+            let target = self.docker_target_bin_dir(options).join(&binary);
 
             debug!("Copying {} to {}", source.display(), target.display());
 
@@ -378,10 +386,10 @@ impl DockerPackage {
         Ok(())
     }
 
-    fn clean(&self) -> Result<()> {
+    fn clean(&self, options: &BuildOptions) -> Result<()> {
         debug!("Will now clean the build directory");
 
-        std::fs::remove_dir_all(&self.docker_root).map_err(|err| {
+        std::fs::remove_dir_all(&self.docker_root(options)).map_err(|err| {
             Error::new("failed to clean the docker root directory").with_source(err)
         })?;
 
@@ -392,22 +400,22 @@ impl DockerPackage {
         self.toml_path.parent().unwrap()
     }
 
-    fn copy_extra_files(&self) -> Result<()> {
+    fn copy_extra_files(&self, options: &BuildOptions) -> Result<()> {
         debug!("Will now copy all extra files");
 
         for copy_command in &self.metadata.extra_files {
-            copy_command.copy_files(self.package_root(), &self.docker_root)?;
+            copy_command.copy_files(self.package_root(), &self.docker_root(options))?;
         }
 
         Ok(())
     }
 
-    fn write_dockerfile(&self, binaries: &[PathBuf]) -> Result<PathBuf> {
+    fn write_dockerfile(&self, options: &BuildOptions, binaries: &[PathBuf]) -> Result<PathBuf> {
         let dockerfile = self.generate_dockerfile(binaries)?;
 
         debug!("Generated Dockerfile:\n{}", dockerfile);
 
-        let dockerfile_path = self.get_dockerfile_name();
+        let dockerfile_path = self.get_dockerfile_name(options);
         let dockerfile_root = dockerfile_path.parent();
 
         std::fs::create_dir_all(dockerfile_root.unwrap())
@@ -426,8 +434,8 @@ impl DockerPackage {
         Ok(dockerfile_path)
     }
 
-    fn get_dockerfile_name(&self) -> PathBuf {
-        self.docker_root.join("Dockerfile")
+    fn get_dockerfile_name(&self, options: &BuildOptions) -> PathBuf {
+        self.docker_root(options).join("Dockerfile")
     }
 
     fn generate_context(&self, binaries: &[PathBuf]) -> tera::Context {

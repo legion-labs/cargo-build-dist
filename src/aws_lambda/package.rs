@@ -14,7 +14,7 @@ use walkdir::WalkDir;
 
 use crate::{
     action_step, rust::is_current_target_runtime, BuildOptions, BuildResult, DistTarget, Error,
-    ErrorContext, Mode, Result,
+    ErrorContext, Result,
 };
 
 use super::AwsLambdaMetadata;
@@ -26,9 +26,7 @@ pub struct AwsLambdaPackage {
     pub toml_path: PathBuf,
     pub binary: String,
     pub metadata: AwsLambdaMetadata,
-    pub target_dir: PathBuf,
-    pub lambda_root: PathBuf,
-    pub mode: Mode,
+    pub target_root: PathBuf,
     pub package: cargo_metadata::Package,
 }
 
@@ -54,13 +52,13 @@ impl DistTarget for AwsLambdaPackage {
             ));
         }
 
-        self.clean()?;
+        self.clean(options)?;
 
-        let binary = self.build_binary()?;
-        self.copy_binary(binary)?;
-        self.copy_extra_files()?;
+        let binary = self.build_binary(options)?;
+        self.copy_binary(options, binary)?;
+        self.copy_extra_files(options)?;
 
-        let archive = self.build_zip_archive()?;
+        let archive = self.build_zip_archive(options)?;
         self.upload_archive(archive, options)?;
 
         Ok(BuildResult::Success)
@@ -155,8 +153,8 @@ impl AwsLambdaPackage {
         runtime.block_on(fut)
     }
 
-    fn build_zip_archive(&self) -> Result<PathBuf> {
-        let archive_path = self.target_dir.join("aws-lambda.zip");
+    fn build_zip_archive(&self, options: &BuildOptions) -> Result<PathBuf> {
+        let archive_path = self.target_dir(options).join("aws-lambda.zip");
 
         action_step!("Packaging", "AWS Lambda archive");
 
@@ -165,14 +163,14 @@ impl AwsLambdaPackage {
                 .map_err(|err| Error::new("failed to create zip archive file").with_source(err))?,
         );
 
-        for entry in WalkDir::new(&self.lambda_root) {
+        for entry in WalkDir::new(&self.lambda_root(options)) {
             let entry = entry.map_err(|err| {
                 Error::new("failed to walk lambda root directory").with_source(err)
             })?;
 
             let file_path = entry
                 .path()
-                .strip_prefix(&self.lambda_root)
+                .strip_prefix(&self.lambda_root(options))
                 .map_err(|err| {
                     Error::new("failed to strip lambda root directory").with_source(err)
                 })?
@@ -221,7 +219,7 @@ impl AwsLambdaPackage {
         Ok(archive_path)
     }
 
-    fn build_binary(&self) -> Result<PathBuf> {
+    fn build_binary(&self, options: &BuildOptions) -> Result<PathBuf> {
         let config = cargo::util::config::Config::default().unwrap();
 
         let ws =
@@ -232,7 +230,7 @@ impl AwsLambdaPackage {
 
         compile_options.spec = cargo::ops::Packages::Packages(vec![self.package.name.clone()]);
         compile_options.build_config.requested_profile =
-            cargo::util::interning::InternedString::new(&self.mode.to_string());
+            cargo::util::interning::InternedString::new(&options.mode.to_string());
 
         if !is_current_target_runtime(&self.metadata.target_runtime)? {
             compile_options.build_config.requested_kinds =
@@ -246,18 +244,20 @@ impl AwsLambdaPackage {
             .map_err(|err| Error::new("failed to compile AWS Lambda binary").with_source(err))
     }
 
-    fn copy_binary(&self, source: PathBuf) -> Result<()> {
+    fn copy_binary(&self, options: &BuildOptions, source: PathBuf) -> Result<()> {
         debug!("Will now copy the dependant binary");
 
-        std::fs::create_dir_all(&self.lambda_root)
+        let lambda_root = self.lambda_root(options);
+
+        std::fs::create_dir_all(&self.lambda_root(options))
             .map_err(Error::from_source)
             .with_full_context(
         "could not create `lambda_root` in Docker root",
-        format!("The build process needed to create `{}` but it could not. You may want to verify permissions.", &self.lambda_root.display()),
+        format!("The build process needed to create `{}` but it could not. You may want to verify permissions.", lambda_root.display()),
             )?;
 
         // The name of the target binary is fixed to "bootstrap" by the folks at AWS.
-        let target = self.lambda_root.join("bootstrap");
+        let target = lambda_root.join("bootstrap");
 
         debug!("Copying {} to {}", source.display(), target.display());
 
@@ -274,10 +274,10 @@ impl AwsLambdaPackage {
         Ok(())
     }
 
-    fn clean(&self) -> Result<()> {
+    fn clean(&self, options: &BuildOptions) -> Result<()> {
         debug!("Will now clean the build directory");
 
-        std::fs::remove_dir_all(&self.lambda_root).map_err(|err| {
+        std::fs::remove_dir_all(&self.lambda_root(options)).map_err(|err| {
             Error::new("failed to clean the lambda root directory").with_source(err)
         })?;
 
@@ -288,11 +288,23 @@ impl AwsLambdaPackage {
         self.toml_path.parent().unwrap()
     }
 
-    fn copy_extra_files(&self) -> Result<()> {
+    fn target_dir(&self, options: &BuildOptions) -> PathBuf {
+        self.target_root
+            .join(&self.metadata.target_runtime)
+            .join(options.mode.to_string())
+    }
+
+    fn lambda_root(&self, options: &BuildOptions) -> PathBuf {
+        self.target_dir(options)
+            .join("aws-lambda")
+            .join(&self.package.name)
+    }
+
+    fn copy_extra_files(&self, options: &BuildOptions) -> Result<()> {
         debug!("Will now copy all extra files");
 
         for copy_command in &self.metadata.extra_files {
-            copy_command.copy_files(self.package_root(), &self.lambda_root)?;
+            copy_command.copy_files(self.package_root(), &self.lambda_root(options))?;
         }
 
         Ok(())

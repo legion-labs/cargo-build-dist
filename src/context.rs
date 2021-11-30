@@ -20,41 +20,9 @@ use crate::{
     Error, Result,
 };
 
-#[derive(Debug, Clone)]
-pub enum Mode {
-    Debug,
-    Release,
-}
-
-impl Mode {
-    pub fn from_release_flag(release_flag: bool) -> Self {
-        if release_flag {
-            Self::Release
-        } else {
-            Self::Debug
-        }
-    }
-}
-
-impl Default for Mode {
-    fn default() -> Self {
-        Self::Debug
-    }
-}
-
-impl Display for Mode {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::Debug => write!(f, "debug"),
-            Self::Release => write!(f, "release"),
-        }
-    }
-}
-
 #[derive(Default)]
 pub struct ContextBuilder {
     manifest_path: Option<PathBuf>,
-    mode: Mode,
 }
 
 impl ContextBuilder {
@@ -74,12 +42,6 @@ impl ContextBuilder {
 
     pub fn with_manifest_path(mut self, manifest_path: impl Into<PathBuf>) -> Self {
         self.manifest_path = Some(manifest_path.into());
-
-        self
-    }
-
-    pub fn with_mode(mut self, mode: Mode) -> Self {
-        self.mode = mode;
 
         self
     }
@@ -202,7 +164,7 @@ impl ContextBuilder {
                 let mut dist_targets: Vec<Box<dyn DistTarget>> = vec![];
 
                 for (name, target) in package_metadata.targets {
-                    dist_targets.push(target.into_dist_target(name.clone(), target_root, &self.mode, package)?);
+                    dist_targets.push(target.into_dist_target(name.clone(), target_root, package)?);
                 }
 
                 Ok(dist_targets)

@@ -69,6 +69,6 @@ mod rust;
 mod term;
 
 pub use context::*;
-pub use dist_target::BuildOptions;
+pub use dist_target::{BuildOptions, Mode};
 pub(crate) use dist_target::{BuildResult, DistTarget};
 pub use errors::{Error, ErrorContext, Result};
