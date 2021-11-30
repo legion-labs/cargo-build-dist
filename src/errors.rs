@@ -1,5 +1,9 @@
 use std::fmt::Display;
 
+/// An error that can possibly inherit from a parent error.
+///
+/// Errors can be enriched with additional information, such as the raw output
+/// of a command or a human-friendly explanation.
 #[derive(thiserror::Error, Debug)]
 pub struct Error {
     description: String,
@@ -68,7 +72,7 @@ impl Error {
     }
 }
 
-pub trait ErrorContext {
+pub(crate) trait ErrorContext {
     fn with_context(self, description: impl Into<String>) -> Self;
     fn with_full_context(
         self,
@@ -107,4 +111,5 @@ impl Display for Error {
     }
 }
 
+/// A convenience type alias to return `Error`s from functions.
 pub type Result<T> = std::result::Result<T, Error>;

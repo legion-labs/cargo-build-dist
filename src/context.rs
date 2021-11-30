@@ -20,12 +20,15 @@ use crate::{
     Error, Result,
 };
 
+/// Build a context from the current environment and optionally provided
+/// attributes.
 #[derive(Default)]
 pub struct ContextBuilder {
     manifest_path: Option<PathBuf>,
 }
 
 impl ContextBuilder {
+    /// Create a new `Context` using the current parameters.
     pub fn build(&self) -> Result<Context> {
         debug!("Building context.");
 
@@ -40,6 +43,10 @@ impl ContextBuilder {
         Ok(Context::new(dist_targets))
     }
 
+    /// Specify the path to the manifest file to use.
+    ///
+    /// If not called, the default is to use the manifest file in the current
+    /// working directory.
     pub fn with_manifest_path(mut self, manifest_path: impl Into<PathBuf>) -> Self {
         self.manifest_path = Some(manifest_path.into());
 
@@ -266,11 +273,13 @@ impl ContextBuilder {
         }
     }
 }
+/// A build context.
 pub struct Context {
     dist_targets: Vec<Box<dyn DistTarget>>,
 }
 
 impl Context {
+    /// Create a new `ContextBuilder`.
     pub fn builder() -> ContextBuilder {
         ContextBuilder::default()
     }
@@ -296,7 +305,8 @@ impl Context {
         Self { dist_targets }
     }
 
-    pub fn build(&self, options: &BuildOptions) -> Result<()> {
+    /// Build all the collected distribution targets.
+    pub fn build_dist_targets(&self, options: &BuildOptions) -> Result<()> {
         match self.dist_targets.len() {
             0 => {}
             1 => action_step!("Processing", "one distribution target",),

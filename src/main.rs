@@ -258,5 +258,5 @@ fn run() -> Result<()> {
         mode,
     };
 
-    context.build(&options)
+    context.build_dist_targets(&options)
 }

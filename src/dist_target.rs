@@ -23,6 +23,7 @@ pub(crate) trait DistTarget: Display {
     fn build(&self, options: &BuildOptions) -> Result<BuildResult>;
 }
 
+/// A build mode that can either be `Debug` or `Release`.
 #[derive(Debug, Clone)]
 pub enum Mode {
     Debug,
