@@ -277,8 +277,9 @@ impl AwsLambdaPackage {
     fn clean(&self, options: &BuildOptions) -> Result<()> {
         debug!("Will now clean the build directory");
 
-        std::fs::remove_dir_all(&self.lambda_root(options)).map_err(|err| {
-            Error::new("failed to clean the lambda root directory").with_source(err)
+        std::fs::remove_dir_all(&self.lambda_root(options)).or_else(|err| match err.kind() {
+            std::io::ErrorKind::NotFound => Ok(()),
+            _ => Err(Error::new("failed to clean the lambda root directory").with_source(err)),
         })?;
 
         Ok(())
