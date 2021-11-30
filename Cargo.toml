@@ -28,9 +28,9 @@ doc = false
 [dependencies]
 anyhow = "1.0"
 atty = "0.2"
-aws_config = { git = "https://github.com/awslabs/aws-sdk-rust", tag = "v0.0.25-alpha", package = "aws-config" }
-aws_sdk_ecr = { git = "https://github.com/awslabs/aws-sdk-rust", tag = "v0.0.25-alpha", package = "aws-sdk-ecr" }
-aws_sdk_s3 = { git = "https://github.com/awslabs/aws-sdk-rust", tag = "v0.0.25-alpha", package = "aws-sdk-s3" }
+aws_config = { version = "0.0.25-alpha", git = "https://github.com/awslabs/aws-sdk-rust", tag = "v0.0.25-alpha", package = "aws-config" }
+aws_sdk_ecr = { version = "0.0.25-alpha", git = "https://github.com/awslabs/aws-sdk-rust", tag = "v0.0.25-alpha", package = "aws-sdk-ecr" }
+aws_sdk_s3 = { version = "0.0.25-alpha", git = "https://github.com/awslabs/aws-sdk-rust", tag = "v0.0.25-alpha", package = "aws-sdk-s3" }
 base64 = { version = "0.13.0" }
 cargo = "0.57"
 cargo_metadata = "0.14.0"
