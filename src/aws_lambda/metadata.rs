@@ -29,16 +29,24 @@ where
     D: serde::Deserializer<'de>,
 {
     match String::deserialize(deserializer) {
-        Ok(registry) => Ok(registry),
-        Err(err) => {
-            if let Ok(registry) = std::env::var(DEFAULT_AWS_LAMBDA_S3_BUCKET_ENV_VAR_NAME) {
-                Ok(registry)
+        Ok(s3_bucket) => {
+            if s3_bucket.is_empty() {
+                if let Ok(s3_bucket) = std::env::var(DEFAULT_AWS_LAMBDA_S3_BUCKET_ENV_VAR_NAME) {
+                    Ok(s3_bucket)
+                } else {
+                    Err(serde::de::Error::custom(format!(
+                        "The field s3_bucket is empty and the environment variable {} was not set",
+                        DEFAULT_AWS_LAMBDA_S3_BUCKET_ENV_VAR_NAME
+                    )))
+                }
             } else {
-                Err(err)
+                Ok(s3_bucket)
             }
         }
+        Err(err) => Err(err),
     }
 }
+
 fn default_target_runtime() -> String {
     "x86_64-unknown-linux-musl".to_string()
 }

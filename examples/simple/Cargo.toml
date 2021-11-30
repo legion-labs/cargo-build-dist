@@ -14,7 +14,7 @@ deps_hash = "68e0fa4ba2903f04582cedb135190f6448a36553cb5065cd7031be549b7ca53c"
 
 [package.metadata.build-dist.simple]
 type = "docker"
-registry = "550877636976.dkr.ecr.ca-central-1.amazonaws.com"
+registry = ""
 template = """
 FROM ubuntu:20.04
 {{ copy_all_binaries }}
@@ -26,5 +26,5 @@ extra_files = [{ source = "src/test/*", destination = "/usr/src/app/" }]
 
 [package.metadata.build-dist.simple-lambda]
 type = "aws-lambda"
-s3_bucket = "legionlabs-lambdas-playground"
+s3_bucket = ""
 extra_files = [{ source = "src/test/*", destination = "/usr/src/app/" }]

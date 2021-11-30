@@ -30,14 +30,21 @@ where
     D: serde::Deserializer<'de>,
 {
     match String::deserialize(deserializer) {
-        Ok(registry) => Ok(registry),
-        Err(err) => {
-            if let Ok(registry) = std::env::var(DEFAULT_DOCKER_REGISTRY_ENV_VAR_NAME) {
-                Ok(registry)
+        Ok(registry) => {
+            if registry.is_empty() {
+                if let Ok(registry) = std::env::var(DEFAULT_DOCKER_REGISTRY_ENV_VAR_NAME) {
+                    Ok(registry)
+                } else {
+                    Err(serde::de::Error::custom(format!(
+                        "The field registry is empty and the environment variable {} was not set",
+                        DEFAULT_DOCKER_REGISTRY_ENV_VAR_NAME
+                    )))
+                }
             } else {
-                Err(err)
+                Ok(registry)
             }
         }
+        Err(err) => Err(err),
     }
 }
 

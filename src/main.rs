@@ -57,7 +57,12 @@
 use cargo_build_dist::{BuildOptions, Context, Mode};
 use clap::{App, Arg};
 use log::debug;
-use std::{env, io::Write, path::PathBuf};
+use std::{
+    env,
+    fmt::{Debug, Formatter},
+    io::Write,
+    path::PathBuf,
+};
 use termcolor::{Color, ColorChoice, ColorSpec, StandardStream, WriteColor};
 
 use cargo_build_dist::{Error, Result};
@@ -69,8 +74,10 @@ const ARG_VERBOSE: &str = "verbose";
 const ARG_DRY_RUN: &str = "dry-run";
 const ARG_FORCE: &str = "force";
 
-fn main() -> Result<()> {
-    if let Err(e) = run() {
+struct MainError(Error);
+
+impl Debug for MainError {
+    fn fmt(&self, _f: &mut Formatter<'_>) -> std::fmt::Result {
         let mut stderr = StandardStream::stderr(ColorChoice::Always);
         stderr
             .set_color(
@@ -83,9 +90,9 @@ fn main() -> Result<()> {
         write!(&mut stderr, "Error").unwrap();
         stderr.reset().unwrap();
 
-        writeln!(&mut stderr, ": {}", e.description()).unwrap();
+        writeln!(&mut stderr, ": {}", self.0.description()).unwrap();
 
-        if let Some(source) = e.source() {
+        if let Some(source) = self.0.source() {
             stderr
                 .set_color(
                     ColorSpec::new()
@@ -99,7 +106,7 @@ fn main() -> Result<()> {
             writeln!(&mut stderr, ": {}", source).unwrap();
         }
 
-        if let Some(explanation) = e.explanation() {
+        if let Some(explanation) = self.0.explanation() {
             stderr
                 .set_color(
                     ColorSpec::new()
@@ -112,7 +119,7 @@ fn main() -> Result<()> {
             stderr.reset().unwrap();
         }
 
-        if let Some(output) = e.output() {
+        if let Some(output) = self.0.output() {
             stderr
                 .set_color(
                     ColorSpec::new()
@@ -126,10 +133,12 @@ fn main() -> Result<()> {
             writeln!(&mut stderr, "{}", output).unwrap();
         }
 
-        Err(e)
-    } else {
         Ok(())
     }
+}
+
+fn main() -> std::result::Result<(), MainError> {
+    run().map_err(MainError)
 }
 
 fn get_matches() -> clap::ArgMatches<'static> {
