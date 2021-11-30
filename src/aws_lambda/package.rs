@@ -13,10 +13,8 @@ use log::{debug, warn};
 use walkdir::WalkDir;
 
 use crate::{
-    action_step,
-    dist_target::{BuildResult, DistTarget},
-    rust::is_current_target_runtime,
-    BuildOptions, Error, ErrorContext, Mode, Result,
+    action_step, rust::is_current_target_runtime, BuildOptions, BuildResult, DistTarget, Error,
+    ErrorContext, Mode, Result,
 };
 
 use super::AwsLambdaMetadata;

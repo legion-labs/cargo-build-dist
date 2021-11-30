@@ -4,6 +4,7 @@ use cargo_metadata::Package;
 
 use crate::Result;
 
+/// A set of build options that can affect the packaging process.
 #[derive(Default)]
 pub struct BuildOptions {
     pub dry_run: bool,
@@ -11,12 +12,12 @@ pub struct BuildOptions {
     pub verbose: bool,
 }
 
-pub enum BuildResult {
+pub(crate) enum BuildResult {
     Success,
     Ignored(String),
 }
 
-pub trait DistTarget: Display {
+pub(crate) trait DistTarget: Display {
     fn package(&self) -> &Package;
     fn build(&self, options: &BuildOptions) -> Result<BuildResult>;
 }

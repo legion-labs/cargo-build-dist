@@ -1,4 +1,4 @@
-all: check build test
+all: check build test doc
 
 check: check-format check-build check-clippy
 
@@ -37,3 +37,6 @@ test-build:
 
 test-run:
 	cargo test
+
+doc:
+	cargo doc --workspace --no-deps --all-features

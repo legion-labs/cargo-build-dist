@@ -1,3 +1,8 @@
+//! Build distribution artifacts for the project.
+//!
+//! `cargo build-dist` relies on crate-level configuration to define and build
+//! distribution artifacts in various formats.
+
 // BEGIN - Legion Labs lints v0.6
 // do not change or add/remove here, but one can add exceptions after this section
 #![deny(unsafe_code)]
@@ -65,5 +70,5 @@ mod term;
 
 pub use context::*;
 pub use dist_target::BuildOptions;
+pub(crate) use dist_target::{BuildResult, DistTarget};
 pub use errors::{Error, ErrorContext, Result};
-pub use term::{ACTION_STEP_COLOR, IGNORE_STEP_COLOR};

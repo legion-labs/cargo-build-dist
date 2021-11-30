@@ -14,10 +14,8 @@ use log::{debug, warn};
 use regex::Regex;
 
 use crate::{
-    action_step,
-    dist_target::{BuildResult, DistTarget},
-    rust::is_current_target_runtime,
-    Error, ErrorContext, Mode, Result,
+    action_step, rust::is_current_target_runtime, BuildResult, DistTarget, Error, ErrorContext,
+    Mode, Result,
 };
 
 use super::DockerMetadata;

@@ -54,13 +54,13 @@
 // crate-specific exceptions:
 #![allow()]
 
-use cargo_build_dist::{bail, BuildOptions, Context, Mode};
+use cargo_build_dist::{BuildOptions, Context, Mode};
 use clap::{App, Arg};
 use log::debug;
 use std::{env, io::Write, path::PathBuf};
 use termcolor::{Color, ColorChoice, ColorSpec, StandardStream, WriteColor};
 
-use cargo_build_dist::Result;
+use cargo_build_dist::{Error, Result};
 
 const ARG_DEBUG: &str = "debug";
 const ARG_RELEASE: &str = "release";
@@ -203,7 +203,10 @@ fn run() -> Result<()> {
 
     if let Some(path) = matches.value_of(ARG_MANIFEST_PATH) {
         if path.trim().is_empty() {
-            bail!("`--{}` cannot be empty", ARG_MANIFEST_PATH);
+            return Err(Error::new(format!(
+                "`--{}` cannot be empty",
+                ARG_MANIFEST_PATH
+            )));
         }
     }
 

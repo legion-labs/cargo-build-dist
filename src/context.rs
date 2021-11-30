@@ -364,10 +364,10 @@ impl Context {
     }
 }
 
-pub type Dependencies = BTreeSet<Dependency>;
+type Dependencies = BTreeSet<Dependency>;
 
 #[derive(Debug, Eq, Clone)]
-pub struct Dependency {
+struct Dependency {
     pub name: String,
     pub version: String,
 }

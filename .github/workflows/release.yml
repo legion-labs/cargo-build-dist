@@ -22,6 +22,9 @@ jobs:
       - name: Test
         run: make test
 
+      - name: Documentation
+        run: make doc
+
       - name: Upload release artifacts
         if: github.ref == 'refs/heads/main'
         uses: actions/upload-artifact@v2

@@ -10,20 +10,19 @@ use log::debug;
 use serde::{Deserialize, Deserializer};
 
 use crate::{
-    aws_lambda::AwsLambdaMetadata, dist_target::DistTarget, docker::DockerMetadata, Error,
-    ErrorContext, Mode,
+    aws_lambda::AwsLambdaMetadata, docker::DockerMetadata, DistTarget, Error, ErrorContext, Mode,
 };
 
 /// The root metadata structure.
 #[derive(Debug, Clone, Deserialize)]
-pub struct Metadata {
+pub(crate) struct Metadata {
     pub deps_hash: Option<String>,
     #[serde(flatten)]
     pub targets: HashMap<String, Target>,
 }
 
 #[derive(Debug, Clone)]
-pub enum Target {
+pub(crate) enum Target {
     Docker(crate::docker::DockerMetadata),
     AwsLambda(crate::aws_lambda::AwsLambdaMetadata),
 }

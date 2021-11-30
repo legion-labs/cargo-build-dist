@@ -108,16 +108,3 @@ impl Display for Error {
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
-
-#[macro_export]
-macro_rules! bail {
-    ($msg:literal $(,)?) => {
-        return Err($crate::Error::new($msg))
-    };
-    ($err:expr $(,)?) => {
-        return Err($crate::Error::new($err))
-    };
-    ($fmt:expr, $($arg:tt)*) => {
-        return Err($crate::Error::new(format!($fmt, $($arg)*)))
-    };
-}
