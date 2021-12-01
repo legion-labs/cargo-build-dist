@@ -199,7 +199,7 @@ impl DockerPackage {
                 .tags(
                     Tag::builder()
                         .key("CreatedBy")
-                        .value("cargo-build-dist")
+                        .value("cargo-monorepo")
                         .build(),
                 )
                 .tags(

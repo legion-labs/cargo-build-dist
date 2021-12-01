@@ -54,7 +54,7 @@
 // crate-specific exceptions:
 #![allow()]
 
-use cargo_build_dist::{BuildOptions, Context, Mode};
+use cargo_monorepo::{BuildOptions, Context, Mode};
 use clap::{App, Arg};
 use log::debug;
 use std::{
@@ -65,7 +65,7 @@ use std::{
 };
 use termcolor::{Color, ColorChoice, ColorSpec, StandardStream, WriteColor};
 
-use cargo_build_dist::{Error, Result};
+use cargo_monorepo::{Error, Result};
 
 const ARG_DEBUG: &str = "debug";
 const ARG_RELEASE: &str = "release";
@@ -144,11 +144,11 @@ fn main() -> std::result::Result<(), MainError> {
 fn get_matches() -> clap::ArgMatches<'static> {
     let mut args: Vec<String> = std::env::args().collect();
 
-    if args.len() == 2 && args[1] == "build-dist" {
+    if args.len() == 2 && args[1] == "monorepo" {
         args.remove(0);
     }
 
-    App::new("cargo build-dist")
+    App::new("cargo monorepo")
         .version(env!("CARGO_PKG_VERSION"))
         .author("Legion Labs <devs@legionlabs.com>")
         .about("Build distributable artifacts from cargo crates.")

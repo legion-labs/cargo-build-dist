@@ -1,29 +1,29 @@
-# Cargo build-dist
+# Cargo monorepo
 
 Builds distributable artifacts from cargo crates in various forms.
 
 ## About
 
-`cargo build-dist` is a tool used to build various distributable artifacts to
+`cargo monorepo` is a tool used to build various distributable artifacts to
 help the distribution of cargo-generated binaries.
 
 In its current form, it supports both build and uploading AWS Lambda packages as
 well as a subset of Docker images but will likely be extended to other targets
 in the future.
 
-In addition to building packages, `cargo build-dist` also considers crate
+In addition to building packages, `cargo monorepo` also considers crate
 dependencies to detect version bumps. It proves especially useful when working
 on mono-repos, like the one Legion Labs maintains.
 
 ## How to use it
 
 ```bash
-cargo build-dist 0.1.0
+cargo monorepo 0.1.0
 Legion Labs <devs@legionlabs.com>
 Build distributable artifacts from cargo crates.
 
 USAGE:
-    cargo-build-dist [FLAGS] [OPTIONS]
+    cargo-monorepo [FLAGS] [OPTIONS]
 
 FLAGS:
     -d, --debug      Print debug information verbosely
@@ -53,23 +53,23 @@ The sections hereafter describe the configuration for each type.
 
 ### Dependency check
 
-`cargo build-dist` will check the dependencies of the crate to detect version bumps.
+`cargo monorepo` will check the dependencies of the crate to detect version bumps.
 
 If a dependency hash is specified in the manifest, it will be checked against
-the current dependency hash. In case of mismatch, `cargo build-dist` will abort
+the current dependency hash. In case of mismatch, `cargo monorepo` will abort
 its execution and let you know that a version bump may be necessary. To solve
 the conflict, simply update the dependency hash with the one given by `cargo
-build-dist`.
+monorepo`.
 
 ```toml
-[package.metadata.build-dist]
+[package.metadata.monorepo]
 deps_hash = "68e0fa4ba2903f04582cedb135190f6448a36553cb5065cd7031be549b7ca53c"
 ```
 
 ### AWS Lambda
 
 ```toml
-[package.metadata.build-dist.simple-lambda]
+[package.metadata.monorepo.simple-lambda]
 type = "aws-lambda"
 s3_bucket = "some-s3-bucket" # Required. The AWS S3 bucket to upload the package to. If empty, the value of the `CARGO_BUILD_DIST_AWS_LAMBDA_S3_BUCKET` environment variable will be used.
 s3_bucket_prefix = "some/prefix/" # Optional. A prefix to use in the S3 bucket in front of the generated artifacts.
@@ -85,7 +85,7 @@ This will package an AWS Lambda and push it to the specified S3 bucket.
 ### Docker
 
 ```toml
-[package.metadata.build-dist.your-image-name]
+[package.metadata.monorepo.your-image-name]
 type = "docker"
 registry = "1234.dkr.ecr.ca-central-1.amazonaws.com" # Required. The registy to push the image to. If empty, the value of the `CARGO_BUILD_DIST_DOCKER_REGISTRY` environment variable will be used.
 target_runtime="x86_64-unknown-linux-gnu" # Optional, defaults to "x86_64-unknown-linux-gnu". The target runtime for the generated binaries. You probably don't need to change this.

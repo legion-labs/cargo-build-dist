@@ -2,26 +2,26 @@
 members = ["examples/*"]
 
 [package]
-name = "cargo-build-dist"
-version = "0.1.0"
+name = "cargo-monorepo"
+version = "0.2.0"
 authors = ["Legion Labs <devs@legionlabs.com>"]
 edition = "2021"
 license = "MIT OR Apache-2.0"
-description = "A cargo extension that helps with building distribution packages in various formats"
-homepage = "https://github.com/legion-labs/cargo-build-dist"
-repository = "https://github.com/legion-labs/cargo-build-dist"
-keywords = ["cargo", "packaging", "distribution"]
+description = "A cargo extension that helps with managing monorepos"
+homepage = "https://github.com/legion-labs/cargo-monorepo"
+repository = "https://github.com/legion-labs/cargo-monorepo"
+keywords = ["cargo", "packaging", "distribution", "monorepo"]
 categories = ["command-line-utilities", "development-tools::cargo-plugins"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [lib]
-name = "cargo_build_dist"
+name = "cargo_monorepo"
 path = "src/lib.rs"
 doc = true
 
 [[bin]]
-name = "cargo-build-dist"
+name = "cargo-monorepo"
 path = "src/main.rs"
 doc = false
 

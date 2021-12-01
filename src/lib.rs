@@ -1,6 +1,6 @@
 //! Build distribution artifacts for the project.
 //!
-//! `cargo build-dist` relies on crate-level configuration to define and build
+//! `cargo monorepo` relies on crate-level configuration to define and build
 //! distribution artifacts in various formats.
 
 // BEGIN - Legion Labs lints v0.6

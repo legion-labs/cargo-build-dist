@@ -207,11 +207,11 @@ impl ContextBuilder {
                     }
                 };
 
-                let metadata = if let Some(metadata) = metadata.get("build-dist") {
+                let metadata = if let Some(metadata) = metadata.get("monorepo") {
                     metadata
                 } else {
                     debug!(
-                        "Ignoring package without `build-dist` metadata: {}",
+                        "Ignoring package without `monorepo` metadata: {}",
                         package_id
                     );
 
@@ -223,7 +223,7 @@ impl ContextBuilder {
                 let metadata = match serde_path_to_error::deserialize(metadata) {
                     Ok(metadata) => metadata,
                     Err(e) => {
-                        return Some(Err(Error::new("failed to parse `build-dist` metadata")
+                        return Some(Err(Error::new("failed to parse `monorepo` metadata")
                             .with_source(e)
                             .with_explanation(format!(
                                 "The metadata for package {} does not seem to be valid.",
@@ -267,7 +267,7 @@ impl ContextBuilder {
                 Err(
                     Error::new("`cargo` not found")
                     .with_source(e)
-                    .with_explanation("The `CARGO` environment variable was not set: it is usually set by `cargo` itself.\nMake sure that `cargo build-dist` is run through `cargo` by putting its containing folder in your `PATH`."),
+                    .with_explanation("The `CARGO` environment variable was not set: it is usually set by `cargo` itself.\nMake sure that `cargo monorepo` is run through `cargo` by putting its containing folder in your `PATH`."),
                 )
             }
         }
