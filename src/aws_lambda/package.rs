@@ -180,13 +180,14 @@ impl AwsLambdaPackage {
             let metadata = std::fs::metadata(entry.path())
                 .map_err(|err| Error::new("failed to get metadata").with_source(err))?;
 
-            let mut options = zip::write::FileOptions::default();
+            let options = zip::write::FileOptions::default();
 
-            if !cfg!(windows) {
+            #[cfg(not(windows))]
+            let options = {
                 use std::os::unix::prelude::PermissionsExt;
 
-                options = options.unix_permissions(metadata.permissions().mode());
-            }
+                options.unix_permissions(metadata.permissions().mode())
+            };
 
             if metadata.is_file() {
                 archive.start_file(&file_path, options).map_err(|err| {
