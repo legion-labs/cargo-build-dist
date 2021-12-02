@@ -61,15 +61,20 @@
 
 mod aws_lambda;
 mod context;
+mod dependency;
 mod dist_target;
 mod docker;
 mod errors;
 mod metadata;
+mod package;
 mod rust;
 mod term;
 
 pub use context::*;
+pub(crate) use dependency::{Dependencies, Dependency, DependencyResolver};
 pub use dist_target::{BuildOptions, Mode};
 pub(crate) use dist_target::{BuildResult, DistTarget};
 pub(crate) use errors::ErrorContext;
 pub use errors::{Error, Result};
+pub(crate) use metadata::Metadata;
+pub use package::Package;

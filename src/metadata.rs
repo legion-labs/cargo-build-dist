@@ -14,7 +14,7 @@ use crate::{
 };
 
 /// The root metadata structure.
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Default, Deserialize)]
 pub(crate) struct Metadata {
     pub deps_hash: Option<String>,
     #[serde(flatten)]

@@ -55,7 +55,7 @@
 #![allow()]
 
 use cargo_monorepo::{BuildOptions, Context, Mode};
-use clap::{App, Arg};
+use clap::{App, Arg, SubCommand};
 use log::debug;
 use std::{
     env,
@@ -73,6 +73,7 @@ const ARG_MANIFEST_PATH: &str = "manifest-path";
 const ARG_VERBOSE: &str = "verbose";
 const ARG_DRY_RUN: &str = "dry-run";
 const ARG_FORCE: &str = "force";
+const SUB_COMMAND_HASH: &str = "hash";
 
 struct MainError(Error);
 
@@ -194,6 +195,15 @@ fn get_matches() -> clap::ArgMatches<'static> {
                 .required(false)
                 .help("Path to Cargo.toml"),
         )
+        .subcommand(
+            SubCommand::with_name(SUB_COMMAND_HASH)
+                .about("Print the hash of the specified crate")
+                .arg(
+                    Arg::with_name("crate")
+                        .required(true)
+                        .help("The crate to compute the hash for"),
+                ),
+        )
         .get_matches_from(args)
 }
 
@@ -267,5 +277,7 @@ fn run() -> Result<()> {
         mode,
     };
 
-    context.build_dist_targets(&options)
+    //context.build_dist_targets(&options)
+    context.list_packages();
+    Ok(())
 }
