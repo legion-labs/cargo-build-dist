@@ -1,23 +1,14 @@
 use cargo_metadata::PackageId;
-use sha2::{Digest, Sha256};
 use std::{cmp::Ordering, collections::BTreeMap, fmt::Display};
 
-use crate::{Error, Result};
+use crate::{hash::HashItem, Error, Hashable, Result};
 
 #[derive(Default, Debug, Clone)]
 pub(crate) struct Dependencies(BTreeMap<PackageId, Dependency>);
 
-impl Dependencies {
-    pub(crate) fn hash(&self) -> String {
-        let mut deps_hasher = Sha256::new();
-
-        for dep in self.0.values() {
-            deps_hasher.update(&dep.name);
-            deps_hasher.update(" ");
-            deps_hasher.update(&dep.version);
-        }
-
-        format!("{:x}", deps_hasher.finalize())
+impl Hashable for Dependencies {
+    fn as_hash_item(&self) -> crate::hash::HashItem<'_> {
+        self.0.values().map(Hashable::as_hash_item).collect()
     }
 }
 
@@ -50,6 +41,15 @@ impl PartialOrd for Dependency {
 impl PartialEq for Dependency {
     fn eq(&self, other: &Self) -> bool {
         self.name == other.name && self.version == other.version
+    }
+}
+
+impl Hashable for Dependency {
+    fn as_hash_item(&self) -> crate::hash::HashItem<'_> {
+        HashItem::List(vec![
+            HashItem::named("name", HashItem::String(&self.name)),
+            HashItem::named("version", HashItem::String(&self.version)),
+        ])
     }
 }
 

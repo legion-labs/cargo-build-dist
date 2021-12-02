@@ -1,0 +1,110 @@
+use sha2::{Digest, Sha256};
+use std::io::Write;
+
+pub trait Hashable {
+    fn hash(&self) -> String {
+        let mut state = Sha256::new();
+        self.as_hash_item().write_to(&mut state).unwrap();
+        format!("{:x}", state.finalize())
+    }
+
+    fn as_hash_item(&self) -> HashItem<'_>;
+}
+
+/// A hash item is a composable part of of a hash and helps achieving
+/// injectivity when hashing composite values.
+#[derive(Debug, Clone)]
+pub enum HashItem<'a> {
+    String(&'a str),
+    Named(&'static str, Box<HashItem<'a>>),
+    List(Vec<HashItem<'a>>),
+}
+
+impl<'a> From<&'a str> for HashItem<'a> {
+    fn from(val: &'a str) -> Self {
+        HashItem::String(val)
+    }
+}
+
+impl<'a> From<&'a String> for HashItem<'a> {
+    fn from(val: &'a String) -> Self {
+        HashItem::String(val)
+    }
+}
+
+impl<'a> FromIterator<HashItem<'a>> for HashItem<'a> {
+    fn from_iter<T: IntoIterator<Item = HashItem<'a>>>(iter: T) -> Self {
+        Self::List(iter.into_iter().collect())
+    }
+}
+
+impl HashItem<'_> {
+    pub fn named(name: &'static str, item: impl Into<Self>) -> Self {
+        HashItem::Named(name, Box::new(item.into()))
+    }
+
+    fn write_to(&self, w: &mut impl Write) -> std::io::Result<()> {
+        match self {
+            HashItem::String(s) => {
+                w.write_all(b"s")?;
+                w.write_all(&(s.len() as u128).to_be_bytes())?;
+                w.write_all(s.as_bytes())?;
+            }
+            HashItem::Named(name, item) => {
+                w.write_all(b"n")?;
+                w.write_all(&(name.len() as u128).to_be_bytes())?;
+                w.write_all(name.as_bytes())?;
+                item.write_to(w)?;
+            }
+            HashItem::List(items) => {
+                w.write_all(b"l")?;
+                w.write_all(&(items.len() as u128).to_be_bytes())?;
+
+                for item in items {
+                    item.write_to(w)?;
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    pub fn hash(&self) -> String {
+        let mut state = Sha256::new();
+        self.write_to(&mut state).unwrap();
+        format!("{:x}", state.finalize())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_hash_item() {
+        let item = HashItem::List(vec![
+            HashItem::named("a", "a"),
+            HashItem::named("b", "b"),
+            HashItem::List(vec![HashItem::named("c", "c"), HashItem::named("d", "d")]),
+        ]);
+
+        // If you change the hash algorithm, this is is expected to break.
+        //
+        // Make sure this is intended though.
+        assert_eq!(
+            item.hash(),
+            "1c292ae624b26d6cdb8a0f874d05f52fa48d57e7fa34bac895c1590f08189f4a"
+        );
+    }
+
+    #[test]
+    fn test_hash_item_injective() {
+        let a = HashItem::List(vec![HashItem::List(vec![
+            HashItem::named("a", "a"),
+            HashItem::named("b", "b"),
+        ])]);
+        let b = HashItem::List(vec![HashItem::named("a", "a"), HashItem::named("b", "b")]);
+
+        assert_ne!(a.hash(), b.hash());
+    }
+}

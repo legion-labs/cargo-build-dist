@@ -2,7 +2,7 @@ use std::{cmp::Ordering, fmt::Display};
 
 use log::debug;
 
-use crate::{Dependencies, DependencyResolver, Error, Metadata, Result};
+use crate::{hash::HashItem, Dependencies, DependencyResolver, Error, Hashable, Metadata, Result};
 
 /// A package in the workspace.
 #[derive(Debug, Clone)]
@@ -25,6 +25,18 @@ impl Package {
             metadata,
             dependencies,
         })
+    }
+
+    pub fn name(&self) -> &str {
+        &self.package.name
+    }
+
+    pub fn version(&self) -> &cargo_metadata::Version {
+        &self.package.version
+    }
+
+    pub fn id(&self) -> &cargo_metadata::PackageId {
+        &self.package.id
     }
 
     fn metadata_from_cargo_metadata_package(package: &cargo_metadata::Package) -> Result<Metadata> {
@@ -73,6 +85,15 @@ impl Package {
 
     //    Ok(dist_targets)
     //}
+}
+
+impl Hashable for Package {
+    fn as_hash_item(&self) -> crate::hash::HashItem<'_> {
+        HashItem::List(vec![HashItem::named(
+            "dependencies",
+            self.dependencies.as_hash_item(),
+        )])
+    }
 }
 
 impl Display for Package {

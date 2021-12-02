@@ -2,10 +2,7 @@
 //! all relevant information for the rest of the commands.
 
 use log::debug;
-use std::{
-    collections::{BTreeMap, BTreeSet},
-    path::PathBuf,
-};
+use std::{collections::BTreeSet, path::PathBuf};
 
 use crate::{Error, Package, Result};
 
@@ -98,6 +95,10 @@ impl Context {
 
     pub fn packages(&self) -> &BTreeSet<Package> {
         &self.packages
+    }
+
+    pub fn get_package_by_name(&self, name: &'_ str) -> Option<&Package> {
+        self.packages().iter().find(|p| p.name() == name)
     }
 
     pub fn list_packages(&self) {

@@ -54,8 +54,8 @@
 // crate-specific exceptions:
 #![allow()]
 
-use cargo_monorepo::{BuildOptions, Context, Mode};
-use clap::{App, Arg, SubCommand};
+use cargo_monorepo::{BuildOptions, Context, Hashable, Mode};
+use clap::{App, AppSettings, Arg, SubCommand};
 use log::debug;
 use std::{
     env,
@@ -73,7 +73,9 @@ const ARG_MANIFEST_PATH: &str = "manifest-path";
 const ARG_VERBOSE: &str = "verbose";
 const ARG_DRY_RUN: &str = "dry-run";
 const ARG_FORCE: &str = "force";
+
 const SUB_COMMAND_HASH: &str = "hash";
+const SUB_COMMAND_LIST: &str = "list";
 
 struct MainError(Error);
 
@@ -153,6 +155,9 @@ fn get_matches() -> clap::ArgMatches<'static> {
         .version(env!("CARGO_PKG_VERSION"))
         .author("Legion Labs <devs@legionlabs.com>")
         .about("Build distributable artifacts from cargo crates.")
+        .setting(AppSettings::ColorAuto)
+        .setting(AppSettings::InferSubcommands)
+        .setting(AppSettings::SubcommandRequired)
         .arg(
             Arg::with_name(ARG_DEBUG)
                 .short("d")
@@ -197,12 +202,16 @@ fn get_matches() -> clap::ArgMatches<'static> {
         )
         .subcommand(
             SubCommand::with_name(SUB_COMMAND_HASH)
-                .about("Print the hash of the specified crate")
+                .about("Print the hash of the specified package")
                 .arg(
-                    Arg::with_name("crate")
+                    Arg::with_name("package")
                         .required(true)
-                        .help("The crate to compute the hash for"),
+                        .help("The package to compute the hash for"),
                 ),
+        )
+        .subcommand(
+            SubCommand::with_name(SUB_COMMAND_LIST)
+                .about("List all the packages in the current workspace"),
         )
         .get_matches_from(args)
 }
@@ -277,7 +286,28 @@ fn run() -> Result<()> {
         mode,
     };
 
-    //context.build_dist_targets(&options)
-    context.list_packages();
-    Ok(())
+    match matches.subcommand() {
+        (SUB_COMMAND_HASH, Some(sub_matches)) => {
+            let package_name = sub_matches.value_of("package").unwrap();
+            let package = context.get_package_by_name(package_name).ok_or_else(|| {
+                Error::new("package not found")
+                    .with_explanation(format!("The operation was attempted onto a package that was not found in the current workspace: {}", package_name))
+            })?;
+
+            println!("{}", package.hash());
+
+            Ok(())
+        }
+        (SUB_COMMAND_LIST, Some(_)) => {
+            context.list_packages();
+
+            Ok(())
+        }
+        (cmd, _) => Err(
+            Error::new("Unknown subcommand specified").with_explanation(format!(
+                "Please specify a valid subcommand: `{}` is not a valid subcommand",
+                cmd,
+            )),
+        ),
+    }
 }
