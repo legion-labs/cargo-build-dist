@@ -5,7 +5,7 @@ use serde::Deserialize;
 
 use crate::{aws_lambda::AwsLambdaPackage, metadata::CopyCommand, Error, Result};
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Ord, PartialOrd, Eq, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct AwsLambdaMetadata {
     pub s3_bucket: Option<String>,

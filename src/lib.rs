@@ -74,8 +74,8 @@ mod term;
 
 pub use context::*;
 pub(crate) use dependency::{Dependencies, DependencyResolver};
-pub use dist_target::{BuildOptions, Mode};
-pub(crate) use dist_target::{BuildResult, DistTarget};
+pub(crate) use dist_target::DistTarget;
+pub use dist_target::{Mode, Options};
 pub(crate) use errors::ErrorContext;
 pub use errors::{Error, Result};
 pub use hash::Hashable;

@@ -13,8 +13,8 @@ use log::{debug, warn};
 use walkdir::WalkDir;
 
 use crate::{
-    action_step, rust::is_current_target_runtime, BuildOptions, BuildResult, DistTarget, Error,
-    ErrorContext, Result,
+    action_step, ignore_step, rust::is_current_target_runtime, DistTarget, Error, ErrorContext,
+    Options, Result,
 };
 
 use super::AwsLambdaMetadata;
@@ -47,11 +47,13 @@ impl DistTarget for AwsLambdaPackage {
         &self.package
     }
 
-    fn build(&self, options: &crate::BuildOptions) -> Result<BuildResult> {
+    fn build(&self, options: &crate::Options) -> Result<()> {
         if cfg!(windows) {
-            return Ok(BuildResult::Ignored(
-                "AWS Lambda build is not supported on Windows".to_string(),
-            ));
+            ignore_step!(
+                "Unsupported",
+                "AWS Lambda build is not supported on Windows"
+            );
+            return Ok(());
         }
 
         self.clean(options)?;
@@ -60,15 +62,29 @@ impl DistTarget for AwsLambdaPackage {
         self.copy_binary(options, binary)?;
         self.copy_extra_files(options)?;
 
-        let archive = self.build_zip_archive(options)?;
-        self.upload_archive(archive, options)?;
+        self.build_zip_archive(options)?;
 
-        Ok(BuildResult::Success)
+        Ok(())
+    }
+
+    fn publish(&self, options: &crate::Options) -> Result<()> {
+        if cfg!(windows) {
+            ignore_step!(
+                "Unsupported",
+                "AWS Lambda publish is not supported on Windows"
+            );
+            return Ok(());
+        }
+
+        self.upload_archive(options)?;
+
+        Ok(())
     }
 }
 
 impl AwsLambdaPackage {
-    fn upload_archive(&self, archive: PathBuf, options: &BuildOptions) -> Result<()> {
+    fn upload_archive(&self, options: &Options) -> Result<()> {
+        let archive_path = self.archive_path(options);
         let runtime = tokio::runtime::Builder::new_current_thread()
             .enable_all()
             .build()
@@ -106,7 +122,7 @@ impl AwsLambdaPackage {
                             &s3_key, &s3_bucket
                         );
 
-                        action_step!(
+                        ignore_step!(
                             "Up-to-date",
                             "AWS Lambda archive `{}` already exists in S3 bucket `{}`",
                             &s3_key,
@@ -127,7 +143,7 @@ impl AwsLambdaPackage {
             if options.dry_run {
                 warn!("`--dry-run` specified, will not really upload the AWS Lambda archive to S3");
             } else {
-                let data = aws_sdk_s3::ByteStream::from_path(&archive)
+                let data = aws_sdk_s3::ByteStream::from_path(&archive_path)
                     .await
                     .map_err(|err| Error::new("failed to read archive on disk").with_source(err))?;
 
@@ -156,8 +172,12 @@ impl AwsLambdaPackage {
         runtime.block_on(fut)
     }
 
-    fn build_zip_archive(&self, options: &BuildOptions) -> Result<PathBuf> {
-        let archive_path = self.target_dir(options).join("aws-lambda.zip");
+    fn archive_path(&self, options: &Options) -> PathBuf {
+        self.target_dir(options).join("aws-lambda.zip")
+    }
+
+    fn build_zip_archive(&self, options: &Options) -> Result<()> {
+        let archive_path = self.archive_path(options);
 
         action_step!("Packaging", "AWS Lambda archive");
 
@@ -220,10 +240,10 @@ impl AwsLambdaPackage {
             .finish()
             .map_err(|err| Error::new("failed to write zip archive file").with_source(err))?;
 
-        Ok(archive_path)
+        Ok(())
     }
 
-    fn build_binary(&self, options: &BuildOptions) -> Result<PathBuf> {
+    fn build_binary(&self, options: &Options) -> Result<PathBuf> {
         let config = cargo::util::config::Config::default().unwrap();
 
         let ws =
@@ -248,7 +268,7 @@ impl AwsLambdaPackage {
             .map_err(|err| Error::new("failed to compile AWS Lambda binary").with_source(err))
     }
 
-    fn copy_binary(&self, options: &BuildOptions, source: PathBuf) -> Result<()> {
+    fn copy_binary(&self, options: &Options, source: PathBuf) -> Result<()> {
         debug!("Will now copy the dependant binary");
 
         let lambda_root = self.lambda_root(options);
@@ -278,7 +298,7 @@ impl AwsLambdaPackage {
         Ok(())
     }
 
-    fn clean(&self, options: &BuildOptions) -> Result<()> {
+    fn clean(&self, options: &Options) -> Result<()> {
         debug!("Will now clean the build directory");
 
         std::fs::remove_dir_all(&self.lambda_root(options)).or_else(|err| match err.kind() {
@@ -311,19 +331,19 @@ impl AwsLambdaPackage {
         }
     }
 
-    fn target_dir(&self, options: &BuildOptions) -> PathBuf {
+    fn target_dir(&self, options: &Options) -> PathBuf {
         self.target_root
             .join(&self.metadata.target_runtime)
             .join(options.mode.to_string())
     }
 
-    fn lambda_root(&self, options: &BuildOptions) -> PathBuf {
+    fn lambda_root(&self, options: &Options) -> PathBuf {
         self.target_dir(options)
             .join("aws-lambda")
             .join(&self.package.name)
     }
 
-    fn copy_extra_files(&self, options: &BuildOptions) -> Result<()> {
+    fn copy_extra_files(&self, options: &Options) -> Result<()> {
         debug!("Will now copy all extra files");
 
         for copy_command in &self.metadata.extra_files {

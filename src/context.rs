@@ -2,9 +2,11 @@
 //! all relevant information for the rest of the commands.
 
 use log::debug;
-use std::{collections::BTreeSet, path::PathBuf};
+use std::{collections::BTreeSet, path::PathBuf, time::Instant};
 
-use crate::{sources::Sources, Error, Package, Result};
+use crate::{
+    action_step, dist_target::DistTarget, sources::Sources, Error, Options, Package, Result,
+};
 
 /// Build a context from the current environment and optionally provided
 /// attributes.
@@ -138,37 +140,81 @@ impl Context {
         Ok(())
     }
 
-    ///// Build all the collected distribution targets.
-    //pub fn build_dist_targets(&self, options: &BuildOptions) -> Result<()> {
-    //    match self.dist_targets.len() {
-    //        0 => {}
-    //        1 => action_step!("Processing", "one distribution target",),
-    //        x => action_step!("Processing", "{} distribution targets", x),
-    //    };
+    fn get_dist_targets_for(
+        &self,
+        packages: &BTreeSet<Package>,
+    ) -> Result<Vec<Box<dyn DistTarget>>> {
+        let global_metadata = self.get_global_metadata()?;
+        let target_root = PathBuf::from(global_metadata.target_directory.as_path());
 
-    //    for dist_target in &self.dist_targets {
-    //        action_step!("Building", dist_target.to_string());
-    //        let now = Instant::now();
+        Ok(packages
+            .iter()
+            .map(|package| package.resolve_dist_targets(&target_root))
+            .collect::<Result<Vec<Vec<Box<dyn DistTarget>>>>>()?
+            .into_iter()
+            .flatten()
+            .collect())
+    }
 
-    //        match dist_target.build(options)? {
-    //            BuildResult::Success => {
-    //                action_step!(
-    //                    "Finished",
-    //                    "{} in {:.2}s",
-    //                    dist_target,
-    //                    now.elapsed().as_secs_f64()
-    //                );
-    //            }
-    //            BuildResult::Ignored(reason) => {
-    //                ignore_step!("Ignored", "{}", reason,);
-    //            }
-    //        }
-    //    }
+    /// Build all the collected distribution targets.
+    pub fn build_dist_targets(
+        &self,
+        packages: &BTreeSet<Package>,
+        options: &Options,
+    ) -> Result<()> {
+        let dist_targets = self.get_dist_targets_for(packages)?;
 
-    //    Ok(())
-    //}
-}
+        match dist_targets.len() {
+            0 => {}
+            1 => action_step!("Processing", "one distribution target",),
+            x => action_step!("Processing", "{} distribution targets", x),
+        };
 
-fn get_target_root(global_metadata: &cargo_metadata::Metadata) -> PathBuf {
-    PathBuf::from(global_metadata.target_directory.as_path())
+        for dist_target in &dist_targets {
+            action_step!("Building", dist_target.to_string());
+            let now = Instant::now();
+
+            dist_target.build(options)?;
+
+            action_step!(
+                "Finished",
+                "{} in {:.2}s",
+                dist_target,
+                now.elapsed().as_secs_f64()
+            );
+        }
+
+        Ok(())
+    }
+
+    /// Publish all the collected distribution targets.
+    pub fn publish_dist_targets(
+        &self,
+        packages: &BTreeSet<Package>,
+        options: &Options,
+    ) -> Result<()> {
+        let dist_targets = self.get_dist_targets_for(packages)?;
+
+        match dist_targets.len() {
+            0 => {}
+            1 => action_step!("Processing", "one distribution target",),
+            x => action_step!("Processing", "{} distribution targets", x),
+        };
+
+        for dist_target in &dist_targets {
+            action_step!("Publishing", dist_target.to_string());
+            let now = Instant::now();
+
+            dist_target.publish(options)?;
+
+            action_step!(
+                "Finished",
+                "{} in {:.2}s",
+                dist_target,
+                now.elapsed().as_secs_f64()
+            );
+        }
+
+        Ok(())
+    }
 }

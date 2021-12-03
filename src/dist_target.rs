@@ -6,21 +6,17 @@ use crate::Result;
 
 /// A set of build options that can affect the packaging process.
 #[derive(Default)]
-pub struct BuildOptions {
+pub struct Options {
     pub dry_run: bool,
     pub force: bool,
     pub verbose: bool,
     pub mode: Mode,
 }
 
-pub(crate) enum BuildResult {
-    Success,
-    Ignored(String),
-}
-
 pub(crate) trait DistTarget: Display {
     fn package(&self) -> &Package;
-    fn build(&self, options: &BuildOptions) -> Result<BuildResult>;
+    fn build(&self, options: &Options) -> Result<()>;
+    fn publish(&self, options: &Options) -> Result<()>;
 }
 
 /// A build mode that can either be `Debug` or `Release`.

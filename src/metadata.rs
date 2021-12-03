@@ -21,7 +21,7 @@ pub(crate) struct Metadata {
     pub targets: HashMap<String, Target>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Ord, PartialOrd, Eq, PartialEq)]
 pub(crate) enum Target {
     Docker(crate::docker::DockerMetadata),
     AwsLambda(crate::aws_lambda::AwsLambdaMetadata),
@@ -97,7 +97,7 @@ impl<'de> Deserialize<'de> for Target {
 /// If `destination` is always made relative to the target root.
 ///
 /// A copy never renames files.
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Ord, PartialOrd, Eq, PartialEq)]
 pub struct CopyCommand {
     pub source: PathBuf,
     pub destination: PathBuf,

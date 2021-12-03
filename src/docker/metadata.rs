@@ -7,7 +7,7 @@ use crate::{metadata::CopyCommand, Error, ErrorContext, Result};
 
 use super::DockerPackage;
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Ord, PartialOrd, Eq, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct DockerMetadata {
     pub registry: Option<String>,

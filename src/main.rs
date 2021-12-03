@@ -54,8 +54,8 @@
 // crate-specific exceptions:
 #![allow()]
 
-use cargo_monorepo::{BuildOptions, Context, Hashable, Mode};
-use clap::{App, AppSettings, Arg, SubCommand};
+use cargo_monorepo::{Context, Hashable, Mode, Options};
+use clap::{App, AppSettings, Arg, ArgMatches, SubCommand};
 use log::debug;
 use std::{
     env,
@@ -76,6 +76,8 @@ const ARG_FORCE: &str = "force";
 
 const SUB_COMMAND_HASH: &str = "hash";
 const SUB_COMMAND_LIST: &str = "list";
+const SUB_COMMAND_BUILD_DIST: &str = "build-dist";
+const SUB_COMMAND_PUBLISH_DIST: &str = "publish-dist";
 
 struct MainError(Error);
 
@@ -213,45 +215,32 @@ fn get_matches() -> clap::ArgMatches<'static> {
             SubCommand::with_name(SUB_COMMAND_LIST)
                 .about("List all the packages in the current workspace"),
         )
+        .subcommand(
+            SubCommand::with_name(SUB_COMMAND_BUILD_DIST)
+                .about("Build the distributable artifacts for the specified package")
+                .arg(
+                    Arg::with_name("package")
+                        .help("A package to build the distribution artifacts for"),
+                ),
+        )
+        .subcommand(
+            SubCommand::with_name(SUB_COMMAND_PUBLISH_DIST)
+                .about("Publish the distributable artifacts for the specified package")
+                .arg(
+                    Arg::with_name("package")
+                        .help("A package to publish the distribution artifacts for"),
+                ),
+        )
         .get_matches_from(args)
 }
 
-fn run() -> Result<()> {
-    let matches = get_matches();
-
-    let mut log_level = log::LevelFilter::Off;
-
-    if matches.is_present(ARG_DEBUG) {
-        log_level = log::LevelFilter::Debug;
-    }
-
-    env_logger::Builder::new().filter_level(log_level).init();
-
-    debug!("Log level set to: {}", log_level);
-
+fn make_context(matches: &ArgMatches<'_>) -> Result<Context> {
     if let Some(path) = matches.value_of(ARG_MANIFEST_PATH) {
         if path.trim().is_empty() {
             return Err(Error::new(format!(
                 "`--{}` cannot be empty",
                 ARG_MANIFEST_PATH
             )));
-        }
-    }
-
-    let mode = Mode::from_release_flag(matches.is_present(ARG_RELEASE));
-
-    match mode {
-        Mode::Debug => {
-            debug!(
-                "`--{}` was not specified: using debug build artifacts",
-                ARG_RELEASE
-            );
-        }
-        Mode::Release => {
-            debug!(
-                "`--{}` was specified: using release build artifacts",
-                ARG_RELEASE
-            );
         }
     }
 
@@ -277,14 +266,50 @@ fn run() -> Result<()> {
         }
     }
 
-    let context = context_builder.build()?;
+    context_builder.build()
+}
 
-    let options = BuildOptions {
+fn make_options(matches: &ArgMatches<'_>) -> Options {
+    let mode = Mode::from_release_flag(matches.is_present(ARG_RELEASE));
+
+    match mode {
+        Mode::Debug => {
+            debug!(
+                "`--{}` was not specified: using debug build artifacts",
+                ARG_RELEASE
+            );
+        }
+        Mode::Release => {
+            debug!(
+                "`--{}` was specified: using release build artifacts",
+                ARG_RELEASE
+            );
+        }
+    }
+
+    Options {
         dry_run: matches.is_present(ARG_DRY_RUN),
         force: matches.is_present(ARG_FORCE),
         verbose: matches.is_present(ARG_VERBOSE),
         mode,
-    };
+    }
+}
+
+fn run() -> Result<()> {
+    let matches = get_matches();
+
+    let mut log_level = log::LevelFilter::Off;
+
+    if matches.is_present(ARG_DEBUG) {
+        log_level = log::LevelFilter::Debug;
+    }
+
+    env_logger::Builder::new().filter_level(log_level).init();
+
+    debug!("Log level set to: {}", log_level);
+
+    let context = make_context(&matches)?;
+    let options = make_options(&matches);
 
     match matches.subcommand() {
         (SUB_COMMAND_HASH, Some(sub_matches)) => {
@@ -300,6 +325,36 @@ fn run() -> Result<()> {
         }
         (SUB_COMMAND_LIST, Some(_)) => {
             context.list_packages()?;
+
+            Ok(())
+        }
+        (SUB_COMMAND_BUILD_DIST, Some(sub_matches)) => {
+            let packages = match sub_matches.value_of("package") {
+                Some(package_name) => {
+                    vec![context.get_package_by_name(package_name)?.ok_or_else(|| {
+                Error::new("package not found")
+                    .with_explanation(format!("The operation was attempted onto a package that was not found in the current workspace: {}", package_name))
+            })?].into_iter().collect()
+                }
+                None => context.packages()?,
+            };
+
+            context.build_dist_targets(&packages, &options)?;
+
+            Ok(())
+        }
+        (SUB_COMMAND_PUBLISH_DIST, Some(sub_matches)) => {
+            let packages = match sub_matches.value_of("package") {
+                Some(package_name) => {
+                    vec![context.get_package_by_name(package_name)?.ok_or_else(|| {
+                Error::new("package not found")
+                    .with_explanation(format!("The operation was attempted onto a package that was not found in the current workspace: {}", package_name))
+            })?].into_iter().collect()
+                }
+                None => context.packages()?,
+            };
+
+            context.publish_dist_targets(&packages, &options)?;
 
             Ok(())
         }

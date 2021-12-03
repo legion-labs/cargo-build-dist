@@ -1,10 +1,11 @@
-use std::{cmp::Ordering, fmt::Display};
+use std::{cmp::Ordering, fmt::Display, path::Path};
 
+use itertools::Itertools;
 use log::debug;
 
 use crate::{
-    hash::HashItem, sources::Sources, Dependencies, DependencyResolver, Error, Hashable, Metadata,
-    Result,
+    dist_target::DistTarget, hash::HashItem, sources::Sources, Dependencies, DependencyResolver,
+    Error, Hashable, Metadata, Result,
 };
 
 /// A package in the workspace.
@@ -82,15 +83,22 @@ impl Package {
         })
     }
 
-    //fn resolve_dist_targets(&self, target_root: &Path) -> Result<Vec<Box<dyn DistTarget>>> {
-    //    let mut dist_targets: Vec<Box<dyn DistTarget>> = vec![];
+    pub(crate) fn resolve_dist_targets(
+        &self,
+        target_root: &Path,
+    ) -> Result<Vec<Box<dyn DistTarget>>> {
+        let mut dist_targets: Vec<Box<dyn DistTarget>> = vec![];
 
-    //    for (name, target) in &self.metadata.targets {
-    //        dist_targets.push(target.into_dist_target(name.clone(), target_root, package)?);
-    //    }
+        for (name, target) in self.metadata.targets.iter().sorted_unstable() {
+            dist_targets.push(target.clone().into_dist_target(
+                name.clone(),
+                target_root,
+                &self.package,
+            )?);
+        }
 
-    //    Ok(dist_targets)
-    //}
+        Ok(dist_targets)
+    }
 }
 
 impl Hashable for Package {
