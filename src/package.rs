@@ -2,7 +2,10 @@ use std::{cmp::Ordering, fmt::Display};
 
 use log::debug;
 
-use crate::{hash::HashItem, Dependencies, DependencyResolver, Error, Hashable, Metadata, Result};
+use crate::{
+    hash::HashItem, sources::Sources, Dependencies, DependencyResolver, Error, Hashable, Metadata,
+    Result,
+};
 
 /// A package in the workspace.
 #[derive(Debug, Clone)]
@@ -10,12 +13,14 @@ pub struct Package {
     package: cargo_metadata::Package,
     metadata: Metadata,
     dependencies: Dependencies,
+    sources: Sources,
 }
 
 impl Package {
-    pub(crate) fn from_cargo_metadata_package(
+    pub(crate) fn from(
         package: &cargo_metadata::Package,
         resolver: &impl DependencyResolver,
+        sources: Sources,
     ) -> Result<Self> {
         let metadata = Self::metadata_from_cargo_metadata_package(package)?;
         let dependencies = resolver.resolve(&package.id)?;
@@ -24,6 +29,7 @@ impl Package {
             package: package.clone(),
             metadata,
             dependencies,
+            sources,
         })
     }
 
@@ -89,10 +95,10 @@ impl Package {
 
 impl Hashable for Package {
     fn as_hash_item(&self) -> crate::hash::HashItem<'_> {
-        HashItem::List(vec![HashItem::named(
-            "dependencies",
-            self.dependencies.as_hash_item(),
-        )])
+        HashItem::List(vec![
+            HashItem::named("dependencies", self.dependencies.as_hash_item()),
+            HashItem::named("sources", self.sources.as_hash_item()),
+        ])
     }
 }
 

@@ -20,6 +20,8 @@ use crate::{
 
 use super::DockerMetadata;
 
+pub const DEFAULT_DOCKER_REGISTRY_ENV_VAR_NAME: &str = "CARGO_BUILD_DIST_DOCKER_REGISTRY";
+
 #[derive(Debug)]
 pub struct DockerPackage {
     pub name: String,
@@ -96,7 +98,7 @@ impl DockerPackage {
 
     fn push_docker_image(&self, options: &crate::BuildOptions) -> Result<()> {
         let mut cmd = Command::new("docker");
-        let docker_image_name = self.docker_image_name();
+        let docker_image_name = self.docker_image_name()?;
 
         if options.force {
             debug!("`--force` specified: not checking for Docker image existence before pushing");
@@ -111,7 +113,7 @@ impl DockerPackage {
 
         debug!("Will now push docker image `{}`", docker_image_name);
 
-        let aws_ecr_information = self.get_aws_ecr_information();
+        let aws_ecr_information = self.get_aws_ecr_information()?;
 
         if let Some(aws_ecr_information) = aws_ecr_information {
             debug!("AWS ECR information found: assuming the image is hosted on AWS ECR in account `{}` and region `{}`", aws_ecr_information.account_id, aws_ecr_information.region);
@@ -246,7 +248,7 @@ impl DockerPackage {
 
     fn build_dockerfile(&self, options: &crate::BuildOptions, docker_file: &Path) -> Result<()> {
         let mut cmd = Command::new("docker");
-        let docker_image_name = self.docker_image_name();
+        let docker_image_name = self.docker_image_name()?;
 
         let docker_root = docker_file
             .parent()
@@ -292,15 +294,41 @@ impl DockerPackage {
         Ok(())
     }
 
-    fn docker_image_name(&self) -> String {
-        format!(
-            "{}/{}:{}",
-            self.metadata.registry, self.package.name, self.package.version
-        )
+    fn registry(&self) -> Result<String> {
+        match self.metadata.registry {
+            Some(ref registry) => Ok(registry.clone()),
+            None => {
+                if let Ok(registry) = std::env::var(DEFAULT_DOCKER_REGISTRY_ENV_VAR_NAME) {
+                    Ok(registry)
+                } else {
+                    Err(
+                        Error::new("failed to determine Docker registry").with_explanation(
+                            format!(
+                        "The field registry is empty and the environment variable {} was not set",
+                        DEFAULT_DOCKER_REGISTRY_ENV_VAR_NAME
+                    ),
+                        ),
+                    )
+                }
+            }
+        }
     }
 
-    fn get_aws_ecr_information(&self) -> Option<AwsEcrInformation> {
-        AwsEcrInformation::from_string(&format!("{}/{}", self.metadata.registry, self.package.name))
+    fn docker_image_name(&self) -> Result<String> {
+        Ok(format!(
+            "{}/{}:{}",
+            self.registry()?,
+            self.package.name,
+            self.package.version
+        ))
+    }
+
+    fn get_aws_ecr_information(&self) -> Result<Option<AwsEcrInformation>> {
+        Ok(AwsEcrInformation::from_string(&format!(
+            "{}/{}",
+            self.registry()?,
+            self.package.name
+        )))
     }
 
     fn target_dir(&self, options: &BuildOptions) -> PathBuf {

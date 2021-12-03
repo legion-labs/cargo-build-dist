@@ -69,6 +69,7 @@ mod hash;
 mod metadata;
 mod package;
 mod rust;
+mod sources;
 mod term;
 
 pub use context::*;

@@ -4,7 +4,7 @@
 use log::debug;
 use std::{collections::BTreeSet, path::PathBuf};
 
-use crate::{Error, Package, Result};
+use crate::{sources::Sources, Error, Package, Result};
 
 /// Build a context from the current environment and optionally provided
 /// attributes.
@@ -15,13 +15,23 @@ pub struct ContextBuilder {
 
 impl ContextBuilder {
     /// Create a new `Context` using the current parameters.
-    pub fn build(&self) -> Result<Context> {
+    pub fn build(self) -> Result<Context> {
         debug!("Building context.");
 
-        let metadata = self.get_global_metadata()?;
-        let packages = Self::scan_packages(&metadata)?;
+        let manifest_path = if let Some(manifest_path) = self.manifest_path {
+            manifest_path
+        } else {
+            let cwd = std::env::current_dir().map_err(|err| {
+                Error::new("could not determine current directory").with_source(err)
+            })?;
 
-        Ok(Context::new(packages))
+            cwd.join("Cargo.toml")
+        };
+
+        let manifest_path = std::fs::canonicalize(manifest_path)
+            .map_err(|err| Error::new("could not find Cargo.toml").with_source(err))?;
+
+        Context::new(manifest_path)
     }
 
     /// Specify the path to the manifest file to use.
@@ -33,17 +43,27 @@ impl ContextBuilder {
 
         self
     }
+}
+/// A build context.
+pub struct Context {
+    manifest_path: PathBuf,
+    config: cargo::util::Config,
+}
 
-    fn scan_packages(metadata: &cargo_metadata::Metadata) -> Result<BTreeSet<Package>> {
-        metadata
-            .workspace_members
-            .iter()
-            .map(|package_id| {
-                let package = &metadata[package_id];
+impl Context {
+    /// Create a new `ContextBuilder`.
+    pub fn builder() -> ContextBuilder {
+        ContextBuilder::default()
+    }
 
-                Package::from_cargo_metadata_package(package, &metadata)
-            })
-            .collect()
+    fn new(manifest_path: PathBuf) -> Result<Self> {
+        let config = cargo::util::config::Config::default()
+            .map_err(|err| Error::new("failed to load Cargo configuration").with_source(err))?;
+
+        Ok(Self {
+            manifest_path,
+            config,
+        })
     }
 
     fn get_global_metadata(&self) -> Result<cargo_metadata::Metadata> {
@@ -56,10 +76,7 @@ impl ContextBuilder {
         debug!("Using `cargo` at: {}", cargo.display());
 
         cmd.cargo_path(cargo);
-
-        if let Some(manifest_path) = &self.manifest_path {
-            cmd.manifest_path(manifest_path);
-        }
+        cmd.manifest_path(&self.manifest_path);
 
         cmd.exec()
             .map_err(|e| Error::new("failed to query cargo metadata").with_source(e))
@@ -77,34 +94,48 @@ impl ContextBuilder {
             }
         }
     }
-}
-/// A build context.
-pub struct Context {
-    packages: BTreeSet<Package>,
-}
 
-impl Context {
-    /// Create a new `ContextBuilder`.
-    pub fn builder() -> ContextBuilder {
-        ContextBuilder::default()
+    pub fn workspace(&self) -> Result<cargo::core::Workspace<'_>> {
+        cargo::core::Workspace::new(&self.manifest_path, &self.config)
+            .map_err(|err| Error::new("failed to load Cargo workspace").with_source(err))
     }
 
-    fn new(packages: BTreeSet<Package>) -> Self {
-        Self { packages }
+    pub fn packages(&self) -> Result<BTreeSet<Package>> {
+        let workspace = self.workspace()?;
+        let metadata = self.get_global_metadata()?;
+
+        metadata
+            .workspace_members
+            .iter()
+            .map(|package_id| {
+                let package = &metadata[package_id];
+
+                let pkg = workspace
+                    .members()
+                    .find(|pkg| pkg.name().as_str() == package.name)
+                    .ok_or_else(|| {
+                        Error::new("failed to find package").with_explanation(format!(
+                            "Could not find a package named `{}` in the current workspace.",
+                            package_id
+                        ))
+                    })?;
+
+                let sources = Sources::scan_package(pkg, &workspace)?;
+                Package::from(package, &metadata, sources)
+            })
+            .collect()
     }
 
-    pub fn packages(&self) -> &BTreeSet<Package> {
-        &self.packages
+    pub fn get_package_by_name(&self, name: &'_ str) -> Result<Option<Package>> {
+        Ok(self.packages()?.iter().find(|p| p.name() == name).cloned())
     }
 
-    pub fn get_package_by_name(&self, name: &'_ str) -> Option<&Package> {
-        self.packages().iter().find(|p| p.name() == name)
-    }
-
-    pub fn list_packages(&self) {
-        for package in self.packages() {
+    pub fn list_packages(&self) -> Result<()> {
+        for package in self.packages()? {
             println!("{}", package);
         }
+
+        Ok(())
     }
 
     ///// Build all the collected distribution targets.

@@ -19,6 +19,8 @@ use crate::{
 
 use super::AwsLambdaMetadata;
 
+pub const DEFAULT_AWS_LAMBDA_S3_BUCKET_ENV_VAR_NAME: &str = "CARGO_BUILD_DIST_AWS_LAMBDA_S3_BUCKET";
+
 #[derive(Debug)]
 pub struct AwsLambdaPackage {
     pub name: String,
@@ -73,6 +75,7 @@ impl AwsLambdaPackage {
             .unwrap();
 
         let region = self.metadata.region.clone();
+        let s3_bucket = self.s3_bucket()?;
 
         let fut = async move {
             let region_provider =
@@ -91,7 +94,7 @@ impl AwsLambdaPackage {
             } else {
                 let resp = client
                     .get_object()
-                    .bucket(&self.metadata.s3_bucket)
+                    .bucket(&s3_bucket)
                     .key(&s3_key)
                     .send()
                     .await;
@@ -100,24 +103,24 @@ impl AwsLambdaPackage {
                     Ok(_) => {
                         debug!(
                             "AWS Lambda archive `{}` already exists in the S3 bucket `{}`: not uploading again",
-                            &s3_key, &self.metadata.s3_bucket
+                            &s3_key, &s3_bucket
                         );
 
                         action_step!(
                             "Up-to-date",
                             "AWS Lambda archive `{}` already exists in S3 bucket `{}`",
                             &s3_key,
-                            &self.metadata.s3_bucket
+                            &s3_bucket
                         );
 
                         return Ok(());
                     }
-                    Err(err) => is_s3_no_such_key(err, &s3_key, &self.metadata.s3_bucket),
+                    Err(err) => is_s3_no_such_key(err, &s3_key, &s3_bucket),
                 }?;
 
                 debug!(
                     "The AWS Lambda archive `{}` does not exist in the S3 bucket `{}`: uploading.",
-                    &s3_key, &self.metadata.s3_bucket
+                    &s3_key, &s3_bucket
                 );
             }
 
@@ -132,17 +135,17 @@ impl AwsLambdaPackage {
                     "Uploading",
                     "AWS Lambda archive `{}` to S3 bucket `{}`",
                     &s3_key,
-                    &self.metadata.s3_bucket
+                    &s3_bucket
                 );
 
-                client.put_object().bucket(&self.metadata.s3_bucket).key(&s3_key).body(data).send()
+                client.put_object().bucket(&s3_bucket).key(&s3_key).body(data).send()
                 .await
                 .map_err(|err|
                     Error::new("failed to upload archive on S3")
                     .with_source(err)
                     .with_explanation(format!(
                         "Please check that the S3 bucket `{}` exists and that you have the correct permissions.",
-                        &self.metadata.s3_bucket
+                        &s3_bucket
                     ))
                 )?;
             }
@@ -288,6 +291,24 @@ impl AwsLambdaPackage {
 
     fn package_root(&self) -> &Path {
         self.toml_path.parent().unwrap()
+    }
+
+    fn s3_bucket(&self) -> Result<String> {
+        match &self.metadata.s3_bucket {
+            Some(s3_bucket) => Ok(s3_bucket.clone()),
+            None => {
+                if let Ok(s3_bucket) = std::env::var(DEFAULT_AWS_LAMBDA_S3_BUCKET_ENV_VAR_NAME) {
+                    Ok(s3_bucket)
+                } else {
+                    Err(
+                        Error::new("failed to determine AWS S3 bucket").with_explanation(format!(
+                        "The field s3_bucket is empty and the environment variable {} was not set",
+                        DEFAULT_AWS_LAMBDA_S3_BUCKET_ENV_VAR_NAME
+                    )),
+                    )
+                }
+            }
+        }
     }
 
     fn target_dir(&self, options: &BuildOptions) -> PathBuf {

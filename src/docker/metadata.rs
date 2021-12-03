@@ -10,8 +10,7 @@ use super::DockerPackage;
 #[derive(Debug, Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct DockerMetadata {
-    #[serde(deserialize_with = "deserialize_registry")]
-    pub registry: String,
+    pub registry: Option<String>,
     #[serde(default = "default_target_runtime")]
     pub target_runtime: String,
     pub template: String,
@@ -21,31 +20,6 @@ pub struct DockerMetadata {
     pub allow_aws_ecr_creation: bool,
     #[serde(default = "default_target_bin_dir")]
     pub target_bin_dir: PathBuf,
-}
-
-pub const DEFAULT_DOCKER_REGISTRY_ENV_VAR_NAME: &str = "CARGO_BUILD_DIST_DOCKER_REGISTRY";
-
-fn deserialize_registry<'de, D>(deserializer: D) -> std::result::Result<String, D::Error>
-where
-    D: serde::Deserializer<'de>,
-{
-    match String::deserialize(deserializer) {
-        Ok(registry) => {
-            if registry.is_empty() {
-                if let Ok(registry) = std::env::var(DEFAULT_DOCKER_REGISTRY_ENV_VAR_NAME) {
-                    Ok(registry)
-                } else {
-                    Err(serde::de::Error::custom(format!(
-                        "The field registry is empty and the environment variable {} was not set",
-                        DEFAULT_DOCKER_REGISTRY_ENV_VAR_NAME
-                    )))
-                }
-            } else {
-                Ok(registry)
-            }
-        }
-        Err(err) => Err(err),
-    }
 }
 
 fn default_target_bin_dir() -> PathBuf {

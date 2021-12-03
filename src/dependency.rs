@@ -67,7 +67,7 @@ pub(crate) trait DependencyResolver {
     ) -> Result<Dependencies>;
 }
 
-impl DependencyResolver for &cargo_metadata::Metadata {
+impl DependencyResolver for cargo_metadata::Metadata {
     fn resolve_with(
         &self,
         mut result: Dependencies,

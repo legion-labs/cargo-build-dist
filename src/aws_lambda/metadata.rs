@@ -8,8 +8,7 @@ use crate::{aws_lambda::AwsLambdaPackage, metadata::CopyCommand, Error, Result};
 #[derive(Debug, Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct AwsLambdaMetadata {
-    #[serde(deserialize_with = "deserialize_s3_bucket")]
-    pub s3_bucket: String,
+    pub s3_bucket: Option<String>,
     #[serde(default)]
     pub region: Option<String>,
     #[serde(default)]
@@ -20,31 +19,6 @@ pub struct AwsLambdaMetadata {
     pub binary: String,
     #[serde(default)]
     pub extra_files: Vec<CopyCommand>,
-}
-
-pub const DEFAULT_AWS_LAMBDA_S3_BUCKET_ENV_VAR_NAME: &str = "CARGO_BUILD_DIST_AWS_LAMBDA_S3_BUCKET";
-
-fn deserialize_s3_bucket<'de, D>(deserializer: D) -> std::result::Result<String, D::Error>
-where
-    D: serde::Deserializer<'de>,
-{
-    match String::deserialize(deserializer) {
-        Ok(s3_bucket) => {
-            if s3_bucket.is_empty() {
-                if let Ok(s3_bucket) = std::env::var(DEFAULT_AWS_LAMBDA_S3_BUCKET_ENV_VAR_NAME) {
-                    Ok(s3_bucket)
-                } else {
-                    Err(serde::de::Error::custom(format!(
-                        "The field s3_bucket is empty and the environment variable {} was not set",
-                        DEFAULT_AWS_LAMBDA_S3_BUCKET_ENV_VAR_NAME
-                    )))
-                }
-            } else {
-                Ok(s3_bucket)
-            }
-        }
-        Err(err) => Err(err),
-    }
 }
 
 fn default_target_runtime() -> String {

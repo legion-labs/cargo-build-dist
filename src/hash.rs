@@ -1,5 +1,5 @@
 use sha2::{Digest, Sha256};
-use std::io::Write;
+use std::{io::Write, path::PathBuf};
 
 pub trait Hashable {
     fn hash(&self) -> String {
@@ -16,7 +16,9 @@ pub trait Hashable {
 #[derive(Debug, Clone)]
 pub enum HashItem<'a> {
     String(&'a str),
-    Named(&'static str, Box<HashItem<'a>>),
+    Bytes(&'a [u8]),
+    Path(&'a PathBuf),
+    Named(&'a str, Box<HashItem<'a>>),
     List(Vec<HashItem<'a>>),
 }
 
@@ -32,14 +34,32 @@ impl<'a> From<&'a String> for HashItem<'a> {
     }
 }
 
+impl<'a> From<&'a [u8]> for HashItem<'a> {
+    fn from(val: &'a [u8]) -> Self {
+        HashItem::Bytes(val)
+    }
+}
+
+impl<'a> From<&'a Vec<u8>> for HashItem<'a> {
+    fn from(val: &'a Vec<u8>) -> Self {
+        HashItem::Bytes(val)
+    }
+}
+
+impl<'a> From<&'a PathBuf> for HashItem<'a> {
+    fn from(val: &'a PathBuf) -> Self {
+        HashItem::Path(val)
+    }
+}
+
 impl<'a> FromIterator<HashItem<'a>> for HashItem<'a> {
     fn from_iter<T: IntoIterator<Item = HashItem<'a>>>(iter: T) -> Self {
         Self::List(iter.into_iter().collect())
     }
 }
 
-impl HashItem<'_> {
-    pub fn named(name: &'static str, item: impl Into<Self>) -> Self {
+impl<'a> HashItem<'a> {
+    pub fn named(name: &'a str, item: impl Into<Self>) -> Self {
         HashItem::Named(name, Box::new(item.into()))
     }
 
@@ -47,6 +67,17 @@ impl HashItem<'_> {
         match self {
             HashItem::String(s) => {
                 w.write_all(b"s")?;
+                w.write_all(&(s.len() as u128).to_be_bytes())?;
+                w.write_all(s.as_bytes())?;
+            }
+            HashItem::Bytes(b) => {
+                w.write_all(b"b")?;
+                w.write_all(&(b.len() as u128).to_be_bytes())?;
+                w.write_all(b)?;
+            }
+            HashItem::Path(p) => {
+                w.write_all(b"p")?;
+                let s = p.to_string_lossy().into_owned();
                 w.write_all(&(s.len() as u128).to_be_bytes())?;
                 w.write_all(s.as_bytes())?;
             }

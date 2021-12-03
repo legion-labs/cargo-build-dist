@@ -289,7 +289,7 @@ fn run() -> Result<()> {
     match matches.subcommand() {
         (SUB_COMMAND_HASH, Some(sub_matches)) => {
             let package_name = sub_matches.value_of("package").unwrap();
-            let package = context.get_package_by_name(package_name).ok_or_else(|| {
+            let package = context.get_package_by_name(package_name)?.ok_or_else(|| {
                 Error::new("package not found")
                     .with_explanation(format!("The operation was attempted onto a package that was not found in the current workspace: {}", package_name))
             })?;
@@ -299,7 +299,7 @@ fn run() -> Result<()> {
             Ok(())
         }
         (SUB_COMMAND_LIST, Some(_)) => {
-            context.list_packages();
+            context.list_packages()?;
 
             Ok(())
         }
