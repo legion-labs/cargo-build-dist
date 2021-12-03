@@ -1,4 +1,4 @@
-use std::{collections::BTreeMap, path::PathBuf};
+use std::{collections::BTreeMap, iter::once, path::PathBuf};
 
 use cargo::core::Source;
 
@@ -27,6 +27,7 @@ impl Sources {
                 .list_files(pkg)
                 .map_err(|err| Error::new("failed to list files").with_source(err))?
                 .into_iter()
+                .chain(once(pkg.manifest_path().to_path_buf()))
                 .map(|path| {
                     std::fs::read(&path)
                         .map(|bytes| (path, bytes))
