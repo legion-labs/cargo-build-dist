@@ -205,11 +205,7 @@ fn get_matches() -> clap::ArgMatches<'static> {
         .subcommand(
             SubCommand::with_name(SUB_COMMAND_HASH)
                 .about("Print the hash of the specified package")
-                .arg(
-                    Arg::with_name("package")
-                        .required(true)
-                        .help("The package to compute the hash for"),
-                ),
+                .arg(Arg::with_name("package").help("A package to compute the hash for")),
         )
         .subcommand(
             SubCommand::with_name(SUB_COMMAND_LIST)
@@ -313,13 +309,20 @@ fn run() -> Result<()> {
 
     match matches.subcommand() {
         (SUB_COMMAND_HASH, Some(sub_matches)) => {
-            let package_name = sub_matches.value_of("package").unwrap();
-            let package = context.get_package_by_name(package_name)?.ok_or_else(|| {
+            match sub_matches.value_of("package") {
+                Some(package_name) => {
+                    let hash = context.get_package_by_name(package_name)?.ok_or_else(|| {
                 Error::new("package not found")
                     .with_explanation(format!("The operation was attempted onto a package that was not found in the current workspace: {}", package_name))
-            })?;
-
-            println!("{}", package.hash());
+            })?.hash();
+                    println!("{}", hash);
+                }
+                None => {
+                    for package in context.packages()? {
+                        println!("{}={}", package, package.hash());
+                    }
+                }
+            };
 
             Ok(())
         }
