@@ -6,6 +6,7 @@ use std::{
     process::Command,
 };
 
+use cargo::core::Workspace;
 use itertools::Itertools;
 use log::debug;
 
@@ -68,6 +69,14 @@ impl Package {
         &self.package.id
     }
 
+    pub fn metadata_package(&self) -> &cargo_metadata::Package {
+        &self.package
+    }
+
+    pub fn root(&self) -> PathBuf {
+        self.package.manifest_path.parent().unwrap().into()
+    }
+
     pub fn sources(&self) -> &Sources {
         &self.sources
     }
@@ -102,6 +111,19 @@ impl Package {
 
         cmd.status()
             .map_err(|err| Error::new("failed to execute command").with_source(err))
+    }
+
+    /// Check that the current tag matches the current hash.
+    pub fn tag_matches(&self) -> Result<bool> {
+        let tags = self.tags()?;
+        let version = self.version();
+        let hash = self.hash();
+
+        if let Some(current_hash) = tags.versions.get(version) {
+            return Ok(current_hash == &hash);
+        }
+
+        Ok(false)
     }
 
     /// Tag the package with its current version and hash.
@@ -188,18 +210,26 @@ impl Package {
     pub(crate) fn resolve_dist_targets(
         &self,
         target_root: &Path,
-    ) -> Result<Vec<Box<dyn DistTarget>>> {
+    ) -> Result<Vec<Box<dyn DistTarget + '_>>> {
         let mut dist_targets: Vec<Box<dyn DistTarget>> = vec![];
 
         for (name, target) in self.metadata.targets.iter().sorted_unstable() {
-            dist_targets.push(target.clone().into_dist_target(
-                name.clone(),
-                target_root,
-                &self.package,
-            )?);
+            dist_targets.push(
+                target
+                    .clone()
+                    .into_dist_target(name.clone(), target_root, self)?,
+            );
         }
 
         Ok(dist_targets)
+    }
+
+    pub(crate) fn workspace<'a>(
+        &self,
+        config: &'a cargo::util::config::Config,
+    ) -> Result<Workspace<'a>> {
+        Workspace::new(std::path::Path::new(&self.package.manifest_path), config)
+            .map_err(|err| Error::new("cannot create workspace").with_source(err))
     }
 }
 

@@ -15,7 +15,7 @@ use regex::Regex;
 
 use crate::{
     action_step, ignore_step, rust::is_current_target_runtime, DistTarget, Error, ErrorContext,
-    Options, Result,
+    Options, Package, Result,
 };
 
 use super::DockerMetadata;
@@ -23,24 +23,22 @@ use super::DockerMetadata;
 pub const DEFAULT_DOCKER_REGISTRY_ENV_VAR_NAME: &str = "CARGO_MONOREPO_DOCKER_REGISTRY";
 
 #[derive(Debug)]
-pub struct DockerPackage {
+pub struct DockerPackage<'a> {
     pub name: String,
-    pub version: String,
-    pub toml_path: PathBuf,
     pub metadata: DockerMetadata,
     pub target_root: PathBuf,
-    pub package: cargo_metadata::Package,
+    pub package: &'a Package,
 }
 
-impl Display for DockerPackage {
+impl Display for DockerPackage<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "docker[{} {}]", self.package.name, self.package.version)
+        write!(f, "docker[{} {}]", self.package, self.package.version())
     }
 }
 
-impl DistTarget for DockerPackage {
-    fn package(&self) -> &cargo_metadata::Package {
-        &self.package
+impl DistTarget for DockerPackage<'_> {
+    fn package(&self) -> &Package {
+        self.package
     }
 
     fn build(&self, options: &crate::Options) -> Result<()> {
@@ -81,7 +79,7 @@ impl DistTarget for DockerPackage {
     }
 }
 
-impl DockerPackage {
+impl DockerPackage<'_> {
     fn pull_docker_image(docker_image_name: &str, options: &crate::Options) -> Result<bool> {
         let mut cmd = Command::new("docker");
 
@@ -225,7 +223,7 @@ impl DockerPackage {
                 .tags(
                     Tag::builder()
                         .key("PackageName")
-                        .value(&self.package.name)
+                        .value(self.package.name())
                         .build(),
                 )
                 .send()
@@ -336,8 +334,8 @@ impl DockerPackage {
         Ok(format!(
             "{}/{}:{}",
             self.registry()?,
-            self.package.name,
-            self.package.version
+            self.package.name(),
+            self.package.version(),
         ))
     }
 
@@ -345,7 +343,7 @@ impl DockerPackage {
         Ok(AwsEcrInformation::from_string(&format!(
             "{}/{}",
             self.registry()?,
-            self.package.name
+            self.package.name(),
         )))
     }
 
@@ -356,7 +354,7 @@ impl DockerPackage {
     fn docker_root(&self, options: &Options) -> PathBuf {
         self.target_dir(options)
             .join("docker")
-            .join(&self.package.name)
+            .join(self.package.name())
     }
 
     fn docker_target_bin_dir(&self, options: &Options) -> PathBuf {
@@ -371,14 +369,12 @@ impl DockerPackage {
 
     fn build_binaries(&self, options: &Options) -> Result<Vec<PathBuf>> {
         let config = cargo::util::config::Config::default().unwrap();
-
-        let ws =
-            cargo::core::Workspace::new(std::path::Path::new(&self.package.manifest_path), &config)
-                .expect("Cannot create workspace");
+        let ws = self.package.workspace(&config)?;
 
         let mut compile_options = CompileOptions::new(&config, CompileMode::Build).unwrap();
 
-        compile_options.spec = cargo::ops::Packages::Packages(vec![self.package.name.clone()]);
+        compile_options.spec =
+            cargo::ops::Packages::Packages(vec![self.package.name().to_string()]);
         compile_options.build_config.requested_profile =
             cargo::util::interning::InternedString::new(&options.mode.to_string());
 
@@ -443,15 +439,11 @@ impl DockerPackage {
         Ok(())
     }
 
-    fn package_root(&self) -> &Path {
-        self.toml_path.parent().unwrap()
-    }
-
     fn copy_extra_files(&self, options: &Options) -> Result<()> {
         debug!("Will now copy all extra files");
 
         for copy_command in &self.metadata.extra_files {
-            copy_command.copy_files(self.package_root(), &self.docker_root(options))?;
+            copy_command.copy_files(&self.package.root(), &self.docker_root(options))?;
         }
 
         Ok(())
@@ -488,8 +480,8 @@ impl DockerPackage {
     fn generate_context(&self, binaries: &[PathBuf]) -> tera::Context {
         let mut context = tera::Context::new();
 
-        context.insert("package_name", &self.package.name);
-        context.insert("package_version", &self.package.version);
+        context.insert("package_name", self.package.name());
+        context.insert("package_version", self.package.version());
 
         let binaries: Vec<String> = binaries
             .iter()

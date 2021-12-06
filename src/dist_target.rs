@@ -1,8 +1,6 @@
 use std::fmt::Display;
 
-use cargo_metadata::Package;
-
-use crate::Result;
+use crate::{Package, Result};
 
 /// A set of build options that can affect the packaging process.
 #[derive(Default)]

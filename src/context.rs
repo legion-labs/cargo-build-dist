@@ -5,7 +5,9 @@ use git2::Repository;
 use log::debug;
 use std::{collections::BTreeSet, path::PathBuf, time::Instant};
 
-use crate::{action_step, sources::Sources, DistTarget, Error, Options, Package, Result};
+use crate::{
+    action_step, ignore_step, sources::Sources, DistTarget, Error, Options, Package, Result,
+};
 
 /// Build a context from the current environment and optionally provided
 /// attributes.
@@ -214,17 +216,17 @@ impl Context {
             .map(|p| p.into_iter().collect())
     }
 
-    fn get_dist_targets_for(
+    fn get_dist_targets_for<'a>(
         &self,
-        packages: &BTreeSet<Package>,
-    ) -> Result<Vec<Box<dyn DistTarget>>> {
+        packages: &'a BTreeSet<Package>,
+    ) -> Result<Vec<Box<dyn DistTarget + 'a>>> {
         let global_metadata = self.get_global_metadata()?;
         let target_root = PathBuf::from(global_metadata.target_directory.as_path());
 
         Ok(packages
             .iter()
             .map(|package| package.resolve_dist_targets(&target_root))
-            .collect::<Result<Vec<Vec<Box<dyn DistTarget>>>>>()?
+            .collect::<Result<Vec<Vec<Box<dyn DistTarget + 'a>>>>>()?
             .into_iter()
             .flatten()
             .collect())
@@ -276,17 +278,25 @@ impl Context {
         };
 
         for dist_target in &dist_targets {
-            action_step!("Publishing", dist_target.to_string());
-            let now = Instant::now();
+            if dist_target.package().tag_matches()? {
+                action_step!("Publishing", dist_target.to_string());
+                let now = Instant::now();
 
-            dist_target.publish(options)?;
+                dist_target.publish(options)?;
 
-            action_step!(
-                "Finished",
-                "{} in {:.2}s",
-                dist_target,
-                now.elapsed().as_secs_f64()
-            );
+                action_step!(
+                    "Finished",
+                    "{} in {:.2}s",
+                    dist_target,
+                    now.elapsed().as_secs_f64()
+                );
+            } else {
+                ignore_step!(
+                    "Skipping",
+                    "{} as the current hash does not match its tag",
+                    dist_target,
+                );
+            }
         }
 
         Ok(())

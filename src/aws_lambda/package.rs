@@ -1,8 +1,4 @@
-use std::{
-    fmt::Display,
-    io::Write,
-    path::{Path, PathBuf},
-};
+use std::{fmt::Display, io::Write, path::PathBuf};
 
 use aws_config::meta::region::RegionProviderChain;
 use cargo::{
@@ -14,7 +10,7 @@ use walkdir::WalkDir;
 
 use crate::{
     action_step, ignore_step, rust::is_current_target_runtime, DistTarget, Error, ErrorContext,
-    Options, Result,
+    Options, Package, Result,
 };
 
 use super::AwsLambdaMetadata;
@@ -22,29 +18,28 @@ use super::AwsLambdaMetadata;
 pub const DEFAULT_AWS_LAMBDA_S3_BUCKET_ENV_VAR_NAME: &str = "CARGO_MONOREPO_AWS_LAMBDA_S3_BUCKET";
 
 #[derive(Debug)]
-pub struct AwsLambdaPackage {
+pub struct AwsLambdaPackage<'a> {
     pub name: String,
-    pub version: String,
-    pub toml_path: PathBuf,
     pub binary: String,
     pub metadata: AwsLambdaMetadata,
     pub target_root: PathBuf,
-    pub package: cargo_metadata::Package,
+    pub package: &'a Package,
 }
 
-impl Display for AwsLambdaPackage {
+impl Display for AwsLambdaPackage<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
             "aws-lambda[{} {}]",
-            self.package.name, self.package.version
+            self.package.name(),
+            self.package.version()
         )
     }
 }
 
-impl DistTarget for AwsLambdaPackage {
-    fn package(&self) -> &cargo_metadata::Package {
-        &self.package
+impl DistTarget for AwsLambdaPackage<'_> {
+    fn package(&self) -> &Package {
+        self.package
     }
 
     fn build(&self, options: &crate::Options) -> Result<()> {
@@ -90,7 +85,7 @@ impl DistTarget for AwsLambdaPackage {
     }
 }
 
-impl AwsLambdaPackage {
+impl AwsLambdaPackage<'_> {
     fn upload_archive(&self, options: &Options) -> Result<()> {
         let archive_path = self.archive_path(options);
         let runtime = tokio::runtime::Builder::new_current_thread()
@@ -110,7 +105,9 @@ impl AwsLambdaPackage {
 
             let s3_key = format!(
                 "{}{}/v{}.zip",
-                &self.metadata.s3_bucket_prefix, self.package.name, self.package.version
+                &self.metadata.s3_bucket_prefix,
+                self.package.name(),
+                self.package.version()
             );
 
             if options.force {
@@ -253,14 +250,12 @@ impl AwsLambdaPackage {
 
     fn build_binary(&self, options: &Options) -> Result<PathBuf> {
         let config = cargo::util::config::Config::default().unwrap();
-
-        let ws =
-            cargo::core::Workspace::new(std::path::Path::new(&self.package.manifest_path), &config)
-                .expect("Cannot create workspace");
+        let ws = self.package.workspace(&config)?;
 
         let mut compile_options = CompileOptions::new(&config, CompileMode::Build).unwrap();
 
-        compile_options.spec = cargo::ops::Packages::Packages(vec![self.package.name.clone()]);
+        compile_options.spec =
+            cargo::ops::Packages::Packages(vec![self.package.name().to_string()]);
         compile_options.build_config.requested_profile =
             cargo::util::interning::InternedString::new(&options.mode.to_string());
 
@@ -317,10 +312,6 @@ impl AwsLambdaPackage {
         Ok(())
     }
 
-    fn package_root(&self) -> &Path {
-        self.toml_path.parent().unwrap()
-    }
-
     fn s3_bucket(&self) -> Result<String> {
         match &self.metadata.s3_bucket {
             Some(s3_bucket) => Ok(s3_bucket.clone()),
@@ -348,14 +339,14 @@ impl AwsLambdaPackage {
     fn lambda_root(&self, options: &Options) -> PathBuf {
         self.target_dir(options)
             .join("aws-lambda")
-            .join(&self.package.name)
+            .join(self.package.name())
     }
 
     fn copy_extra_files(&self, options: &Options) -> Result<()> {
         debug!("Will now copy all extra files");
 
         for copy_command in &self.metadata.extra_files {
-            copy_command.copy_files(self.package_root(), &self.lambda_root(options))?;
+            copy_command.copy_files(&self.package.root(), &self.lambda_root(options))?;
         }
 
         Ok(())

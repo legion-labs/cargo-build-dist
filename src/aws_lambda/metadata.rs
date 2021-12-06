@@ -3,7 +3,7 @@ use std::path::Path;
 use log::debug;
 use serde::Deserialize;
 
-use crate::{aws_lambda::AwsLambdaPackage, metadata::CopyCommand, Error, Result};
+use crate::{aws_lambda::AwsLambdaPackage, metadata::CopyCommand, Error, Package, Result};
 
 #[derive(Debug, Clone, Deserialize, Ord, PartialOrd, Eq, PartialEq)]
 #[serde(deny_unknown_fields)]
@@ -26,15 +26,16 @@ fn default_target_runtime() -> String {
 }
 
 impl AwsLambdaMetadata {
-    pub fn into_dist_target(
+    pub fn into_dist_target<'a>(
         self,
         name: String,
         target_root: &Path,
-        package: &cargo_metadata::Package,
-    ) -> Result<AwsLambdaPackage> {
+        package: &'a Package,
+    ) -> Result<AwsLambdaPackage<'a>> {
         debug!("Package has an AWS Lambda target distribution.");
 
         let binaries: Vec<_> = package
+            .metadata_package()
             .targets
             .iter()
             .filter_map(|target| {
@@ -51,7 +52,7 @@ impl AwsLambdaMetadata {
                 Error::new("package contain no binaries").with_explanation(
                     format!(
                         "Building an AWS Lambda requires at least one binary but the package {} does not contain any.",
-                        package.id,
+                        package.id(),
                     ),
                 ),
             );
@@ -63,7 +64,7 @@ impl AwsLambdaMetadata {
                     Error::new("no binary specified").with_explanation(
                         format!(
                             "Building an AWS Lambda requires a single binary for the package {} but no specific one was configured and the package contains multiple binaries: {}",
-                            package.id, binaries.join(", "),
+                            package.id(), binaries.join(", "),
                         ),
                     ),
                 );
@@ -75,7 +76,8 @@ impl AwsLambdaMetadata {
                 Error::new("package contains no binary with the specified name").with_explanation(
                     format!(
                         "The package {} does not contain a binary with the name {}.",
-                        package.id, self.binary
+                        package.id(),
+                        self.binary
                     ),
                 ),
             );
@@ -87,12 +89,10 @@ impl AwsLambdaMetadata {
 
         Ok(AwsLambdaPackage {
             name,
-            version: package.version.to_string(),
-            toml_path: package.manifest_path.clone().into(),
             binary,
             metadata: self,
             target_root: target_root.to_path_buf(),
-            package: package.clone(),
+            package,
         })
     }
 }

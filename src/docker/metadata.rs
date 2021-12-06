@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 use log::debug;
 use serde::Deserialize;
 
-use crate::{metadata::CopyCommand, Error, ErrorContext, Result};
+use crate::{metadata::CopyCommand, Error, ErrorContext, Package, Result};
 
 use super::DockerPackage;
 
@@ -31,15 +31,16 @@ fn default_target_runtime() -> String {
 }
 
 impl DockerMetadata {
-    pub fn into_dist_target(
+    pub fn into_dist_target<'a>(
         self,
         name: String,
         target_root: &Path,
-        package: &cargo_metadata::Package,
-    ) -> Result<DockerPackage> {
+        package: &'a Package,
+    ) -> Result<DockerPackage<'a>> {
         debug!("Package has a Docker target distribution.");
 
         let binaries: Vec<_> = package
+            .metadata_package()
             .targets
             .iter()
             .filter_map(|target| {
@@ -52,7 +53,7 @@ impl DockerMetadata {
             .collect();
 
         if binaries.is_empty() {
-            return Err(Error::new("package contain no binaries").with_explanation(format!("Building a Docker image requires at least one binary but the package {} does not contain any.", package.id)));
+            return Err(Error::new("package contain no binaries").with_explanation(format!("Building a Docker image requires at least one binary but the package {} does not contain any.", package.id())));
         }
 
         debug!(
@@ -69,11 +70,9 @@ impl DockerMetadata {
 
         Ok(DockerPackage {
             name,
-            version: package.version.to_string(),
-            toml_path: package.manifest_path.clone().into(),
             metadata: self,
             target_root: target_root.to_path_buf(),
-            package: package.clone(),
+            package,
         })
     }
 }
