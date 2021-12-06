@@ -67,6 +67,14 @@ impl DistTarget for DockerPackage {
             return Ok(());
         }
 
+        if options.mode.is_debug() && !options.force {
+            ignore_step!(
+                "Unsupported",
+                "Docker images can't be published in debug mode unless `--force` is specified"
+            );
+            return Ok(());
+        }
+
         self.push_docker_image(options)?;
 
         Ok(())

@@ -76,6 +76,14 @@ impl DistTarget for AwsLambdaPackage {
             return Ok(());
         }
 
+        if options.mode.is_debug() && !options.force {
+            ignore_step!(
+                "Unsupported",
+                "AWS Lambda can't be published in debug mode unless `--force` is specified"
+            );
+            return Ok(());
+        }
+
         self.upload_archive(options)?;
 
         Ok(())
