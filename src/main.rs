@@ -73,6 +73,7 @@ const ARG_MANIFEST_PATH: &str = "manifest-path";
 const ARG_VERBOSE: &str = "verbose";
 const ARG_DRY_RUN: &str = "dry-run";
 const ARG_FORCE: &str = "force";
+const ARG_PACKAGE: &str = "package";
 const ARG_PACKAGES: &str = "packages";
 const ARG_CHANGED_SINCE_GIT_REF: &str = "changed-since-git-ref";
 
@@ -81,6 +82,7 @@ const SUB_COMMAND_LIST: &str = "list";
 const SUB_COMMAND_BUILD_DIST: &str = "build-dist";
 const SUB_COMMAND_PUBLISH_DIST: &str = "publish-dist";
 const SUB_COMMAND_EXEC: &str = "exec";
+const SUB_COMMAND_TAG: &str = "tag";
 
 struct MainError(Error);
 
@@ -158,12 +160,14 @@ fn get_matches() -> clap::ArgMatches<'static> {
                 .short("d")
                 .long(ARG_DEBUG)
                 .required(false)
+                .global(true)
                 .help("Print debug information verbosely"),
         )
         .arg(
             Arg::with_name(ARG_RELEASE)
                 .long(ARG_RELEASE)
                 .required(false)
+                .global(true)
                 .help("Use release build artifacts"),
         )
         .arg(
@@ -171,6 +175,7 @@ fn get_matches() -> clap::ArgMatches<'static> {
                 .short("v")
                 .long(ARG_VERBOSE)
                 .required(false)
+                .global(true)
                 .help("Print debug information verbosely"),
         )
         .arg(
@@ -178,6 +183,7 @@ fn get_matches() -> clap::ArgMatches<'static> {
                 .short("n")
                 .long(ARG_DRY_RUN)
                 .required(false)
+                .global(true)
                 .help("Do not really push any artifacts"),
         )
         .arg(
@@ -185,6 +191,7 @@ fn get_matches() -> clap::ArgMatches<'static> {
                 .short("f")
                 .long(ARG_FORCE)
                 .required(false)
+                .global(true)
                 .help("Push artifacts even if they already exist - this can be dangerous"),
         )
         .arg(
@@ -193,12 +200,13 @@ fn get_matches() -> clap::ArgMatches<'static> {
                 .long(ARG_MANIFEST_PATH)
                 .takes_value(true)
                 .required(false)
+                .global(true)
                 .help("Path to Cargo.toml"),
         )
         .subcommand(
             SubCommand::with_name(SUB_COMMAND_HASH)
                 .about("Print the hash of the specified package")
-                .arg(Arg::with_name("package").help("A package to compute the hash for")),
+                .arg(Arg::with_name(ARG_PACKAGE).help("A package to compute the hash for")),
         )
         .subcommand(
             SubCommand::with_name(SUB_COMMAND_LIST)
@@ -293,6 +301,11 @@ fn get_matches() -> clap::ArgMatches<'static> {
                         ),
                 ),
         )
+        .subcommand(
+            SubCommand::with_name(SUB_COMMAND_TAG)
+                .about("Tag the current version of the package")
+                .arg(Arg::with_name(ARG_PACKAGE).help("A package to tag").required(true)),
+        )
         .get_matches_from(args)
 }
 
@@ -375,7 +388,7 @@ fn run() -> Result<()> {
 
     match matches.subcommand() {
         (SUB_COMMAND_HASH, Some(sub_matches)) => {
-            match sub_matches.value_of("package") {
+            match sub_matches.value_of(ARG_PACKAGE) {
                 Some(package_name) => {
                     let hash = context.get_package_by_name(package_name)?.hash();
                     println!("{}", hash);
@@ -443,6 +456,12 @@ fn run() -> Result<()> {
             }
 
             Ok(())
+        }
+        (SUB_COMMAND_TAG, Some(sub_matches)) => {
+            let package_name = sub_matches.value_of(ARG_PACKAGE).unwrap();
+            let package = context.get_package_by_name(package_name)?;
+
+            package.tag(&options)
         }
         (cmd, _) => Err(
             Error::new("Unknown subcommand specified").with_explanation(format!(

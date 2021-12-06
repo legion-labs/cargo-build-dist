@@ -1,11 +1,17 @@
-use std::{cmp::Ordering, ffi::OsStr, fmt::Display, path::Path, process::Command};
+use std::{
+    cmp::Ordering,
+    ffi::OsStr,
+    fmt::Display,
+    path::{Path, PathBuf},
+    process::Command,
+};
 
 use itertools::Itertools;
 use log::debug;
 
 use crate::{
-    action_step, dist_target::DistTarget, hash::HashItem, sources::Sources, Dependencies,
-    DependencyResolver, Error, Hashable, Metadata, Result,
+    action_step, dist_target::DistTarget, hash::HashItem, ignore_step, sources::Sources,
+    tags::Tags, Dependencies, DependencyResolver, Error, Hashable, Metadata, Options, Result,
 };
 
 /// A package in the workspace.
@@ -17,14 +23,21 @@ pub struct Package {
     sources: Sources,
 }
 
+const TAGS_FILE_NAME: &str = "tags.toml";
+
 impl Package {
     pub(crate) fn from(
         package: &cargo_metadata::Package,
         resolver: &impl DependencyResolver,
-        sources: Sources,
+        mut sources: Sources,
     ) -> Result<Self> {
         let metadata = Self::metadata_from_cargo_metadata_package(package)?;
         let dependencies = resolver.resolve(&package.id)?;
+
+        // Make sure the tags file is not part of the sources.
+        if sources.remove(&Self::tags_file(package)).is_some() {
+            debug!("Removed tags file from sources to prevent circular dependency invalidation");
+        }
 
         Ok(Self {
             package: package.clone(),
@@ -32,6 +45,15 @@ impl Package {
             dependencies,
             sources,
         })
+    }
+
+    fn tags_file(package: &cargo_metadata::Package) -> PathBuf {
+        package
+            .manifest_path
+            .as_std_path()
+            .parent()
+            .unwrap()
+            .join(TAGS_FILE_NAME)
     }
 
     pub fn name(&self) -> &str {
@@ -48,6 +70,10 @@ impl Package {
 
     pub fn sources(&self) -> &Sources {
         &self.sources
+    }
+
+    pub fn tags(&self) -> Result<Tags> {
+        Tags::read_file(&Self::tags_file(&self.package))
     }
 
     pub fn execute(
@@ -76,6 +102,50 @@ impl Package {
 
         cmd.status()
             .map_err(|err| Error::new("failed to execute command").with_source(err))
+    }
+
+    /// Tag the package with its current version and hash.
+    ///
+    /// If a tag already exist for the version, the call will fail.
+    pub fn tag(&self, options: &Options) -> Result<()> {
+        let version = self.version();
+        let hash = self.hash();
+
+        let tags_file = Self::tags_file(&self.package);
+        let mut tags = Tags::read_file(&tags_file)?;
+
+        if let Some(current_hash) = tags.versions.get(version) {
+            if current_hash == &hash {
+                ignore_step!(
+                    "Skipping",
+                    "tagging {} as a tag with an identical hash `{}` exists already",
+                    self.id(),
+                    hash,
+                );
+
+                return Ok(());
+            }
+
+            if options.force {
+                action_step!("Re-tagging", "{} with hash `{}`", self.id(), &hash);
+                Ok(())
+            } else {
+                Err(Error::new("tag already exists for version")
+                    .with_explanation(format!(
+                        "A tag for version `{}` already exists with a different hash `{}`. You may need to increment the package version number and try again.",
+                        version,
+                        current_hash,
+                    ))
+                )
+            }
+        } else {
+            action_step!("Tagging", "{} with hash `{}`", self.id(), &hash);
+
+            Ok(())
+        }?;
+
+        tags.versions.insert(version.clone(), hash);
+        tags.write_file(&tags_file)
     }
 
     fn metadata_from_cargo_metadata_package(package: &cargo_metadata::Package) -> Result<Metadata> {

@@ -5,7 +5,7 @@ pub trait Hashable {
     fn hash(&self) -> String {
         let mut state = Sha256::new();
         self.as_hash_item().write_to(&mut state).unwrap();
-        format!("{:x}", state.finalize())
+        format!("sha256:{:x}", state.finalize())
     }
 
     fn as_hash_item(&self) -> HashItem<'_>;

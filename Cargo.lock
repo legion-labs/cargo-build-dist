@@ -564,6 +564,7 @@ dependencies = [
  "termcolor",
  "thiserror",
  "tokio",
+ "toml",
  "walkdir",
  "zip",
 ]

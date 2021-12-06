@@ -70,6 +70,7 @@ mod metadata;
 mod package;
 mod rust;
 mod sources;
+mod tags;
 mod term;
 
 pub use context::*;
@@ -81,3 +82,4 @@ pub use errors::{Error, Result};
 pub use hash::Hashable;
 pub(crate) use metadata::Metadata;
 pub use package::Package;
+pub use tags::Tags;

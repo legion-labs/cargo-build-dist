@@ -46,6 +46,10 @@ impl Sources {
     pub fn contains(&self, path: &Path) -> bool {
         self.0.contains_key(path)
     }
+
+    pub fn remove(&mut self, path: &Path) -> Option<()> {
+        self.0.remove(path).map(|_| ())
+    }
 }
 
 impl Hashable for Sources {
