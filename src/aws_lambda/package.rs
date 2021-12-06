@@ -19,7 +19,7 @@ use crate::{
 
 use super::AwsLambdaMetadata;
 
-pub const DEFAULT_AWS_LAMBDA_S3_BUCKET_ENV_VAR_NAME: &str = "CARGO_BUILD_DIST_AWS_LAMBDA_S3_BUCKET";
+pub const DEFAULT_AWS_LAMBDA_S3_BUCKET_ENV_VAR_NAME: &str = "CARGO_MONOREPO_AWS_LAMBDA_S3_BUCKET";
 
 #[derive(Debug)]
 pub struct AwsLambdaPackage {

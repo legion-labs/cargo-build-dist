@@ -71,7 +71,7 @@ deps_hash = "68e0fa4ba2903f04582cedb135190f6448a36553cb5065cd7031be549b7ca53c"
 ```toml
 [package.metadata.monorepo.simple-lambda]
 type = "aws-lambda"
-s3_bucket = "some-s3-bucket" # Required. The AWS S3 bucket to upload the package to. If empty, the value of the `CARGO_BUILD_DIST_AWS_LAMBDA_S3_BUCKET` environment variable will be used.
+s3_bucket = "some-s3-bucket" # Required. The AWS S3 bucket to upload the package to. If empty, the value of the `CARGO_MONOREPO_AWS_LAMBDA_S3_BUCKET` environment variable will be used.
 s3_bucket_prefix = "some/prefix/" # Optional. A prefix to use in the S3 bucket in front of the generated artifacts.
 region = "ca-central-1" # Optional. The AWS region to use. Defaults to the region of the AWS CLI.
 binary = "my-binary" # Optional. The name of the binary to package for this lambda. Required only if the crate contains more than one binary.
@@ -87,7 +87,7 @@ This will package an AWS Lambda and push it to the specified S3 bucket.
 ```toml
 [package.metadata.monorepo.your-image-name]
 type = "docker"
-registry = "1234.dkr.ecr.ca-central-1.amazonaws.com" # Required. The registy to push the image to. If empty, the value of the `CARGO_BUILD_DIST_DOCKER_REGISTRY` environment variable will be used.
+registry = "1234.dkr.ecr.ca-central-1.amazonaws.com" # Required. The registy to push the image to. If empty, the value of the `CARGO_MONOREPO_DOCKER_REGISTRY` environment variable will be used.
 target_runtime="x86_64-unknown-linux-gnu" # Optional, defaults to "x86_64-unknown-linux-gnu". The target runtime for the generated binaries. You probably don't need to change this.
 allow_aws_ecr_creation = true # Optional, defaults to false. Allows the creation of AWS ECR repositories for the image.
 target_bin_dir = "/usr/src/app/bin/" # Optional. The target directory in which to place the binaries. Defaults to "/bin".

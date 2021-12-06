@@ -217,16 +217,48 @@ fn get_matches() -> clap::ArgMatches<'static> {
             SubCommand::with_name(SUB_COMMAND_BUILD_DIST)
                 .about("Build the distributable artifacts for the specified package")
                 .arg(
-                    Arg::with_name("package")
-                        .help("A package to build the distribution artifacts for"),
+                    Arg::with_name(ARG_PACKAGES)
+                        .long(ARG_PACKAGES)
+                        .short("p")
+                        .takes_value(true)
+                        .multiple(true)
+                        .require_delimiter(true)
+                        .conflicts_with(ARG_CHANGED_SINCE_GIT_REF)
+                        .help("A list of packagse to execute the command for, separated by commas"),
+                )
+                .arg(
+                    Arg::with_name(ARG_CHANGED_SINCE_GIT_REF)
+                        .long(ARG_CHANGED_SINCE_GIT_REF)
+                        .short("s")
+                        .conflicts_with(ARG_PACKAGES)
+                        .takes_value(true)
+                        .help(
+                            "Execute the command in all the packages with changes since the specified Git reference",
+                        ),
                 ),
         )
         .subcommand(
             SubCommand::with_name(SUB_COMMAND_PUBLISH_DIST)
                 .about("Publish the distributable artifacts for the specified package")
                 .arg(
-                    Arg::with_name("package")
-                        .help("A package to publish the distribution artifacts for"),
+                    Arg::with_name(ARG_PACKAGES)
+                        .long(ARG_PACKAGES)
+                        .short("p")
+                        .takes_value(true)
+                        .multiple(true)
+                        .require_delimiter(true)
+                        .conflicts_with(ARG_CHANGED_SINCE_GIT_REF)
+                        .help("A list of packagse to execute the command for, separated by commas"),
+                )
+                .arg(
+                    Arg::with_name(ARG_CHANGED_SINCE_GIT_REF)
+                        .long(ARG_CHANGED_SINCE_GIT_REF)
+                        .short("s")
+                        .conflicts_with(ARG_PACKAGES)
+                        .takes_value(true)
+                        .help(
+                            "Execute the command in all the packages with changes since the specified Git reference",
+                        ),
                 ),
         )
         .subcommand(
@@ -370,11 +402,12 @@ fn run() -> Result<()> {
             Ok(())
         }
         (SUB_COMMAND_BUILD_DIST, Some(sub_matches)) => {
-            let packages = match sub_matches.value_of("package") {
-                Some(package_name) => vec![context.get_package_by_name(package_name)?]
-                    .into_iter()
-                    .collect(),
-                None => context.packages()?,
+            let packages = match sub_matches.value_of(ARG_CHANGED_SINCE_GIT_REF) {
+                Some(git_ref) => context.get_changed_packages(git_ref)?,
+                None => match sub_matches.values_of(ARG_PACKAGES) {
+                    Some(packages_names) => context.get_packages_by_names(packages_names)?,
+                    None => context.packages()?,
+                },
             };
 
             context.build_dist_targets(&packages, &options)?;
@@ -382,11 +415,12 @@ fn run() -> Result<()> {
             Ok(())
         }
         (SUB_COMMAND_PUBLISH_DIST, Some(sub_matches)) => {
-            let packages = match sub_matches.value_of("package") {
-                Some(package_name) => vec![context.get_package_by_name(package_name)?]
-                    .into_iter()
-                    .collect(),
-                None => context.packages()?,
+            let packages = match sub_matches.value_of(ARG_CHANGED_SINCE_GIT_REF) {
+                Some(git_ref) => context.get_changed_packages(git_ref)?,
+                None => match sub_matches.values_of(ARG_PACKAGES) {
+                    Some(packages_names) => context.get_packages_by_names(packages_names)?,
+                    None => context.packages()?,
+                },
             };
 
             context.publish_dist_targets(&packages, &options)?;
