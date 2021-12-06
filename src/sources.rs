@@ -1,4 +1,8 @@
-use std::{collections::BTreeMap, iter::once, path::PathBuf};
+use std::{
+    collections::BTreeMap,
+    iter::once,
+    path::{Path, PathBuf},
+};
 
 use cargo::core::Source;
 
@@ -37,6 +41,10 @@ impl Sources {
                 .into_iter()
                 .collect(),
         ))
+    }
+
+    pub fn contains(&self, path: &Path) -> bool {
+        self.0.contains_key(path)
     }
 }
 

@@ -1,11 +1,11 @@
-use std::{cmp::Ordering, fmt::Display, path::Path};
+use std::{cmp::Ordering, ffi::OsStr, fmt::Display, path::Path, process::Command};
 
 use itertools::Itertools;
 use log::debug;
 
 use crate::{
-    dist_target::DistTarget, hash::HashItem, sources::Sources, Dependencies, DependencyResolver,
-    Error, Hashable, Metadata, Result,
+    action_step, dist_target::DistTarget, hash::HashItem, sources::Sources, Dependencies,
+    DependencyResolver, Error, Hashable, Metadata, Result,
 };
 
 /// A package in the workspace.
@@ -44,6 +44,38 @@ impl Package {
 
     pub fn id(&self) -> &cargo_metadata::PackageId {
         &self.package.id
+    }
+
+    pub fn sources(&self) -> &Sources {
+        &self.sources
+    }
+
+    pub fn execute(
+        &self,
+        args: impl IntoIterator<Item = impl AsRef<OsStr>>,
+    ) -> Result<std::process::ExitStatus> {
+        let args: Vec<_> = args.into_iter().collect();
+
+        if args.is_empty() {
+            return Err(Error::new("no arguments provided to execute"));
+        }
+
+        action_step!("Executing", "{}", self.id());
+        action_step!(
+            "Running",
+            "`{}`",
+            args.iter().map(|s| s.as_ref().to_string_lossy()).join(" "),
+        );
+
+        let program = args[0].as_ref();
+        let program_args = &args[1..];
+        let mut cmd = Command::new(program);
+
+        cmd.args(program_args)
+            .current_dir(&self.package.manifest_path.parent().unwrap());
+
+        cmd.status()
+            .map_err(|err| Error::new("failed to execute command").with_source(err))
     }
 
     fn metadata_from_cargo_metadata_package(package: &cargo_metadata::Package) -> Result<Metadata> {

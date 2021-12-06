@@ -1,12 +1,11 @@
 //! Gathers all the environment information and build a Context containing
 //! all relevant information for the rest of the commands.
 
+use git2::Repository;
 use log::debug;
 use std::{collections::BTreeSet, path::PathBuf, time::Instant};
 
-use crate::{
-    action_step, dist_target::DistTarget, sources::Sources, Error, Options, Package, Result,
-};
+use crate::{action_step, sources::Sources, DistTarget, Error, Options, Package, Result};
 
 /// Build a context from the current environment and optionally provided
 /// attributes.
@@ -128,16 +127,91 @@ impl Context {
             .collect()
     }
 
-    pub fn get_package_by_name(&self, name: &'_ str) -> Result<Option<Package>> {
-        Ok(self.packages()?.iter().find(|p| p.name() == name).cloned())
+    pub fn get_package_by_name(&self, name: &'_ str) -> Result<Package> {
+        self.packages()?.iter().find(|p| p.name() == name).cloned().ok_or_else(|| {
+                Error::new("package not found")
+                    .with_explanation(format!("The operation was attempted onto a package that was not found in the current workspace: {}", name))
+        })
     }
 
-    pub fn list_packages(&self) -> Result<()> {
-        for package in self.packages()? {
-            println!("{}", package);
-        }
+    pub fn get_packages_by_names<'a>(
+        &self,
+        names: impl IntoIterator<Item = &'a str>,
+    ) -> Result<BTreeSet<Package>> {
+        names
+            .into_iter()
+            .map(|name| self.get_package_by_name(name))
+            .collect::<Result<Vec<_>>>()
+            .map(|v| v.into_iter().collect())
+    }
 
-        Ok(())
+    pub fn git_repository(&self) -> Result<Repository> {
+        let workspace = self.workspace()?;
+
+        Repository::open(workspace.root())
+            .map_err(|err| Error::new("failed to open Git repository").with_source(err))
+    }
+
+    pub fn get_changed_packages(&self, start: &str) -> Result<BTreeSet<Package>> {
+        let packages = self.packages()?;
+        let changed_files = self.get_changed_files(start)?;
+
+        Ok(packages
+            .into_iter()
+            .filter(|p| {
+                for changed_file in &changed_files {
+                    if p.sources().contains(changed_file) {
+                        return true;
+                    }
+                }
+
+                false
+            })
+            .collect())
+    }
+
+    fn get_changed_files(&self, start: &str) -> Result<BTreeSet<PathBuf>> {
+        let repo = self.git_repository()?;
+        let start = repo
+            .revparse_single(start)
+            .map_err(|err| Error::new("failed to parse Git revision").with_source(err))?
+            .as_commit()
+            .ok_or_else(|| Error::new("reference is not a commit"))?
+            .tree()
+            .unwrap();
+
+        let diff = repo
+            .diff_tree_to_workdir(Some(&start), None)
+            .map_err(|err| Error::new("failed to generate diff").with_source(err))?;
+
+        let prefix = repo
+            .path()
+            .parent()
+            .ok_or_else(|| Error::new("failed to determine Git repository path"))?;
+
+        let mut result = Vec::new();
+
+        // 100 is as good a guess as any.
+        result.reserve(100);
+
+        diff.print(git2::DiffFormat::NameOnly, |_, _, l| {
+            let path = prefix.join(PathBuf::from(
+                std::str::from_utf8(l.content()).unwrap().trim_end(),
+            ));
+
+            result.push(
+                std::fs::canonicalize(path)
+                    .map_err(|err| Error::new("failed to get canonical path").with_source(err)),
+            );
+
+            true
+        })
+        .map_err(|err| Error::new("failed to print diff").with_source(err))?;
+
+        result
+            .into_iter()
+            .collect::<Result<Vec<_>>>()
+            .map(|p| p.into_iter().collect())
     }
 
     fn get_dist_targets_for(

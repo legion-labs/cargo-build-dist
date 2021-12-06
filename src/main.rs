@@ -73,29 +73,21 @@ const ARG_MANIFEST_PATH: &str = "manifest-path";
 const ARG_VERBOSE: &str = "verbose";
 const ARG_DRY_RUN: &str = "dry-run";
 const ARG_FORCE: &str = "force";
+const ARG_PACKAGES: &str = "packages";
+const ARG_CHANGED_SINCE_GIT_REF: &str = "changed-since-git-ref";
 
 const SUB_COMMAND_HASH: &str = "hash";
 const SUB_COMMAND_LIST: &str = "list";
 const SUB_COMMAND_BUILD_DIST: &str = "build-dist";
 const SUB_COMMAND_PUBLISH_DIST: &str = "publish-dist";
+const SUB_COMMAND_EXEC: &str = "exec";
 
 struct MainError(Error);
 
 impl Debug for MainError {
     fn fmt(&self, _f: &mut Formatter<'_>) -> std::fmt::Result {
         let mut stderr = StandardStream::stderr(ColorChoice::Always);
-        stderr
-            .set_color(
-                ColorSpec::new()
-                    .set_fg(Some(Color::Red))
-                    .set_intense(true)
-                    .set_bold(true),
-            )
-            .unwrap();
-        write!(&mut stderr, "Error").unwrap();
-        stderr.reset().unwrap();
-
-        writeln!(&mut stderr, ": {}", self.0.description()).unwrap();
+        writeln!(&mut stderr, "{}", self.0.description()).unwrap();
 
         if let Some(source) = self.0.source() {
             stderr
@@ -108,7 +100,7 @@ impl Debug for MainError {
                 .unwrap();
             write!(&mut stderr, "Caused by").unwrap();
             stderr.reset().unwrap();
-            writeln!(&mut stderr, ": {}", source).unwrap();
+            write!(&mut stderr, ": {}", source).unwrap();
         }
 
         if let Some(explanation) = self.0.explanation() {
@@ -120,7 +112,7 @@ impl Debug for MainError {
                         .set_intense(true),
                 )
                 .unwrap();
-            writeln!(&mut stderr, "\n{}", explanation).unwrap();
+            write!(&mut stderr, "\n{}", explanation).unwrap();
             stderr.reset().unwrap();
         }
 
@@ -135,7 +127,7 @@ impl Debug for MainError {
                 .unwrap();
             writeln!(&mut stderr, "\nOutput follows:").unwrap();
             stderr.reset().unwrap();
-            writeln!(&mut stderr, "{}", output).unwrap();
+            write!(&mut stderr, "{}", output).unwrap();
         }
 
         Ok(())
@@ -146,6 +138,7 @@ fn main() -> std::result::Result<(), MainError> {
     run().map_err(MainError)
 }
 
+#[allow(clippy::too_many_lines)]
 fn get_matches() -> clap::ArgMatches<'static> {
     let mut args: Vec<String> = std::env::args().collect();
 
@@ -209,6 +202,15 @@ fn get_matches() -> clap::ArgMatches<'static> {
         )
         .subcommand(
             SubCommand::with_name(SUB_COMMAND_LIST)
+                .arg(
+                    Arg::with_name(ARG_CHANGED_SINCE_GIT_REF)
+                        .long(ARG_CHANGED_SINCE_GIT_REF)
+                        .short("s")
+                        .takes_value(true)
+                        .help(
+                            "Only list the packages with changes since the specified Git reference",
+                        ),
+                )
                 .about("List all the packages in the current workspace"),
         )
         .subcommand(
@@ -225,6 +227,38 @@ fn get_matches() -> clap::ArgMatches<'static> {
                 .arg(
                     Arg::with_name("package")
                         .help("A package to publish the distribution artifacts for"),
+                ),
+        )
+        .subcommand(
+            SubCommand::with_name(SUB_COMMAND_EXEC)
+                .about("Execute a command in each of the specified packages directory or for all packages if no packages are specified")
+                .arg(
+                    Arg::with_name(ARG_PACKAGES)
+                        .long(ARG_PACKAGES)
+                        .short("p")
+                        .takes_value(true)
+                        .multiple(true)
+                        .require_delimiter(true)
+                        .conflicts_with(ARG_CHANGED_SINCE_GIT_REF)
+                        .help("A list of packagse to execute the command for, separated by commas"),
+                )
+                .arg(
+                    Arg::with_name(ARG_CHANGED_SINCE_GIT_REF)
+                        .long(ARG_CHANGED_SINCE_GIT_REF)
+                        .short("s")
+                        .conflicts_with(ARG_PACKAGES)
+                        .takes_value(true)
+                        .help(
+                            "Execute the command in all the packages with changes since the specified Git reference",
+                        ),
+                )
+                .arg(
+                    Arg::with_name("command")
+                        .required(true)
+                        .multiple(true)
+                        .help(
+                            "The command to execute in each package",
+                        ),
                 ),
         )
         .get_matches_from(args)
@@ -311,10 +345,7 @@ fn run() -> Result<()> {
         (SUB_COMMAND_HASH, Some(sub_matches)) => {
             match sub_matches.value_of("package") {
                 Some(package_name) => {
-                    let hash = context.get_package_by_name(package_name)?.ok_or_else(|| {
-                Error::new("package not found")
-                    .with_explanation(format!("The operation was attempted onto a package that was not found in the current workspace: {}", package_name))
-            })?.hash();
+                    let hash = context.get_package_by_name(package_name)?.hash();
                     println!("{}", hash);
                 }
                 None => {
@@ -326,19 +357,23 @@ fn run() -> Result<()> {
 
             Ok(())
         }
-        (SUB_COMMAND_LIST, Some(_)) => {
-            context.list_packages()?;
+        (SUB_COMMAND_LIST, Some(sub_matches)) => {
+            let packages = match sub_matches.value_of(ARG_CHANGED_SINCE_GIT_REF) {
+                Some(git_ref) => context.get_changed_packages(git_ref)?,
+                None => context.packages()?,
+            };
+
+            for package in packages {
+                println!("{}", package);
+            }
 
             Ok(())
         }
         (SUB_COMMAND_BUILD_DIST, Some(sub_matches)) => {
             let packages = match sub_matches.value_of("package") {
-                Some(package_name) => {
-                    vec![context.get_package_by_name(package_name)?.ok_or_else(|| {
-                Error::new("package not found")
-                    .with_explanation(format!("The operation was attempted onto a package that was not found in the current workspace: {}", package_name))
-            })?].into_iter().collect()
-                }
+                Some(package_name) => vec![context.get_package_by_name(package_name)?]
+                    .into_iter()
+                    .collect(),
                 None => context.packages()?,
             };
 
@@ -348,16 +383,30 @@ fn run() -> Result<()> {
         }
         (SUB_COMMAND_PUBLISH_DIST, Some(sub_matches)) => {
             let packages = match sub_matches.value_of("package") {
-                Some(package_name) => {
-                    vec![context.get_package_by_name(package_name)?.ok_or_else(|| {
-                Error::new("package not found")
-                    .with_explanation(format!("The operation was attempted onto a package that was not found in the current workspace: {}", package_name))
-            })?].into_iter().collect()
-                }
+                Some(package_name) => vec![context.get_package_by_name(package_name)?]
+                    .into_iter()
+                    .collect(),
                 None => context.packages()?,
             };
 
             context.publish_dist_targets(&packages, &options)?;
+
+            Ok(())
+        }
+        (SUB_COMMAND_EXEC, Some(sub_matches)) => {
+            let packages = match sub_matches.value_of(ARG_CHANGED_SINCE_GIT_REF) {
+                Some(git_ref) => context.get_changed_packages(git_ref)?,
+                None => match sub_matches.values_of(ARG_PACKAGES) {
+                    Some(packages_names) => context.get_packages_by_names(packages_names)?,
+                    None => context.packages()?,
+                },
+            };
+
+            let args: Vec<&str> = sub_matches.values_of("command").unwrap().collect();
+
+            for package in packages {
+                package.execute(&args)?;
+            }
 
             Ok(())
         }
