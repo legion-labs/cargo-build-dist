@@ -1515,6 +1515,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "mybinary"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "mylib",
+]
+
+[[package]]
+name = "mylib"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+]
+
+[[package]]
 name = "ntapi"
 version = "0.3.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2149,13 +2164,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e51e73328dc4ac0c7ccbda3a494dfa03df1de2f46018127f60c693f2648455b0"
 dependencies = [
  "libc",
-]
-
-[[package]]
-name = "simple"
-version = "0.1.0"
-dependencies = [
- "anyhow",
 ]
 
 [[package]]

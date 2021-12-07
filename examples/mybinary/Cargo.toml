@@ -1,5 +1,5 @@
 [package]
-name = "simple"
+name = "mybinary"
 version = "0.1.0"
 edition = "2021"
 publish = false
@@ -8,9 +8,7 @@ publish = false
 
 [dependencies]
 anyhow = "1"
-
-[package.metadata.monorepo]
-deps_hash = "68e0fa4ba2903f04582cedb135190f6448a36553cb5065cd7031be549b7ca53c"
+mylib = { path = "../mylib" }
 
 [package.metadata.monorepo.simple]
 type = "docker"
