@@ -41,11 +41,23 @@ impl<'g> Package<'g> {
         self.package_metadata.version()
     }
 
-    pub fn dependant_packages(&self) -> Result<Vec<Package<'g>>> {
+    pub fn directly_dependant_packages(&self) -> Result<Vec<Package<'g>>> {
         self.package_metadata
             .reverse_direct_links()
             .map(|package_link| Package::new(self.context, package_link.from()))
             .collect()
+    }
+
+    pub fn dependant_packages(&self) -> Result<Vec<Package<'g>>> {
+        self.directly_dependant_packages()?
+            .into_iter()
+            .map(|package| {
+                package
+                    .directly_dependant_packages()
+                    .map(|packages| std::iter::once(package).chain(packages.into_iter()))
+            })
+            .collect::<Result<Vec<_>>>()
+            .map(|packages| packages.into_iter().flatten().collect())
     }
 
     pub fn sources(&self) -> &Sources {
