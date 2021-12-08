@@ -6,16 +6,31 @@ use std::{
 
 use cargo::core::Source;
 
-use crate::{hash::HashItem, Error, Hashable, Result};
+use crate::{context::Context, hash::HashItem, Error, Hashable, Result};
 
 #[derive(Debug, Clone)]
 pub struct Sources(BTreeMap<PathBuf, Vec<u8>>);
 
 impl Sources {
-    pub fn scan_package(
-        pkg: &cargo::core::Package,
-        workspace: &cargo::core::Workspace<'_>,
+    pub fn from_package(
+        context: &Context,
+        package: &guppy::graph::PackageMetadata<'_>,
     ) -> Result<Self> {
+        let workspace = &context.workspace()?;
+        let core_package = workspace
+            .members()
+            .find(|pkg| pkg.name().as_str() == package.name())
+            .ok_or_else(|| {
+                Error::new("failed to find package").with_explanation(format!(
+                    "Could not find a package named `{}` in the current workspace.",
+                    package.name()
+                ))
+            })?;
+
+        Sources::new(workspace, core_package)
+    }
+
+    fn new(workspace: &cargo::core::Workspace<'_>, pkg: &cargo::core::Package) -> Result<Self> {
         let mut path_source = cargo::sources::PathSource::new(
             pkg.root(),
             pkg.package_id().source_id(),

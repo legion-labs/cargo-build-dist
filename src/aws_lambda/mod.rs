@@ -1,5 +1,5 @@
+mod dist_target;
 mod metadata;
-mod package;
 
+pub use dist_target::AwsLambdaDistTarget;
 pub use metadata::AwsLambdaMetadata;
-pub use package::AwsLambdaPackage;

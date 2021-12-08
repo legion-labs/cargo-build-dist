@@ -54,7 +54,7 @@
 // crate-specific exceptions:
 #![allow()]
 
-use cargo_monorepo::{Context, Hashable, Mode, Options};
+use cargo_monorepo::{Context, Mode, Options};
 use clap::{App, AppSettings, Arg, ArgMatches, SubCommand};
 use log::debug;
 use std::{
@@ -341,7 +341,7 @@ fn make_context(matches: &ArgMatches<'_>) -> Result<Context> {
         }
     }
 
-    context_builder.build()
+    context_builder.with_options(make_options(matches)).build()
 }
 
 fn make_options(matches: &ArgMatches<'_>) -> Options {
@@ -384,13 +384,12 @@ fn run() -> Result<()> {
     debug!("Log level set to: {}", log_level);
 
     let context = make_context(&matches)?;
-    let options = make_options(&matches);
 
     match matches.subcommand() {
         (SUB_COMMAND_HASH, Some(sub_matches)) => {
             match sub_matches.value_of(ARG_PACKAGE) {
                 Some(package_name) => {
-                    let hash = context.get_package_by_name(package_name)?.hash();
+                    let hash = context.resolve_package_by_name(package_name)?.hash();
                     println!("{}", hash);
                 }
                 None => {
@@ -404,7 +403,7 @@ fn run() -> Result<()> {
         }
         (SUB_COMMAND_LIST, Some(sub_matches)) => {
             let packages = match sub_matches.value_of(ARG_CHANGED_SINCE_GIT_REF) {
-                Some(git_ref) => context.get_changed_packages(git_ref)?,
+                Some(git_ref) => context.resolve_changed_packages(git_ref)?,
                 None => context.packages()?,
             };
 
@@ -416,35 +415,39 @@ fn run() -> Result<()> {
         }
         (SUB_COMMAND_BUILD_DIST, Some(sub_matches)) => {
             let packages = match sub_matches.value_of(ARG_CHANGED_SINCE_GIT_REF) {
-                Some(git_ref) => context.get_changed_packages(git_ref)?,
+                Some(git_ref) => context.resolve_changed_packages(git_ref)?,
                 None => match sub_matches.values_of(ARG_PACKAGES) {
-                    Some(packages_names) => context.get_packages_by_names(packages_names)?,
+                    Some(packages_names) => context.resolve_packages_by_names(packages_names)?,
                     None => context.packages()?,
                 },
             };
 
-            context.build_dist_targets(&packages, &options)?;
+            for package in packages {
+                package.build_dist_targets()?;
+            }
 
             Ok(())
         }
         (SUB_COMMAND_PUBLISH_DIST, Some(sub_matches)) => {
             let packages = match sub_matches.value_of(ARG_CHANGED_SINCE_GIT_REF) {
-                Some(git_ref) => context.get_changed_packages(git_ref)?,
+                Some(git_ref) => context.resolve_changed_packages(git_ref)?,
                 None => match sub_matches.values_of(ARG_PACKAGES) {
-                    Some(packages_names) => context.get_packages_by_names(packages_names)?,
+                    Some(packages_names) => context.resolve_packages_by_names(packages_names)?,
                     None => context.packages()?,
                 },
             };
 
-            context.publish_dist_targets(&packages, &options)?;
+            for package in packages {
+                package.publish_dist_targets()?;
+            }
 
             Ok(())
         }
         (SUB_COMMAND_EXEC, Some(sub_matches)) => {
             let packages = match sub_matches.value_of(ARG_CHANGED_SINCE_GIT_REF) {
-                Some(git_ref) => context.get_changed_packages(git_ref)?,
+                Some(git_ref) => context.resolve_changed_packages(git_ref)?,
                 None => match sub_matches.values_of(ARG_PACKAGES) {
-                    Some(packages_names) => context.get_packages_by_names(packages_names)?,
+                    Some(packages_names) => context.resolve_packages_by_names(packages_names)?,
                     None => context.packages()?,
                 },
             };
@@ -459,9 +462,9 @@ fn run() -> Result<()> {
         }
         (SUB_COMMAND_TAG, Some(sub_matches)) => {
             let package_name = sub_matches.value_of(ARG_PACKAGE).unwrap();
-            let package = context.get_package_by_name(package_name)?;
+            let package = context.resolve_package_by_name(package_name)?;
 
-            package.tag(&options)
+            package.tag()
         }
         (cmd, _) => Err(
             Error::new("Unknown subcommand specified").with_explanation(format!(

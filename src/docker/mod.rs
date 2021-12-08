@@ -1,5 +1,5 @@
+mod dist_target;
 mod metadata;
-mod package;
 
+pub use dist_target::DockerDistTarget;
 pub use metadata::DockerMetadata;
-pub use package::DockerPackage;

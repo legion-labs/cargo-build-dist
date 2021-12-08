@@ -1,7 +1,7 @@
 //! Metadata structures for the various targets.
 
 use std::{
-    collections::HashMap,
+    collections::BTreeMap,
     fmt::Display,
     path::{Path, PathBuf},
 };
@@ -10,53 +10,56 @@ use log::debug;
 use serde::{Deserialize, Deserializer};
 
 use crate::{
-    aws_lambda::AwsLambdaMetadata, docker::DockerMetadata, DistTarget, Error, ErrorContext, Package,
+    aws_lambda::AwsLambdaMetadata, dist_target::DistTarget, docker::DockerMetadata, Error,
+    ErrorContext, Package, Result,
 };
 
 /// The root metadata structure.
 #[derive(Debug, Clone, Default, Deserialize)]
 pub(crate) struct Metadata {
-    pub deps_hash: Option<String>,
     #[serde(flatten)]
-    pub targets: HashMap<String, Target>,
+    pub dist_targets: BTreeMap<String, DistTargetMetadata>,
 }
 
-#[derive(Debug, Clone, Ord, PartialOrd, Eq, PartialEq)]
-pub(crate) enum Target {
-    Docker(crate::docker::DockerMetadata),
-    AwsLambda(crate::aws_lambda::AwsLambdaMetadata),
+impl Metadata {
+    pub(crate) fn new(package_metadata: &guppy::graph::PackageMetadata<'_>) -> Result<Metadata> {
+        #[derive(Debug, Deserialize)]
+        struct RootMetadata {
+            #[serde(default)]
+            monorepo_metadata: Metadata,
+        }
+
+        let metadata: RootMetadata =
+            serde_json::from_value(package_metadata.metadata_table().clone()).map_err(|err| {
+                Error::new("failed to parse metadata")
+                    .with_source(err)
+                    .with_explanation(format!(
+                        "failed to parse the Cargo metadata for package {}",
+                        package_metadata.id()
+                    ))
+            })?;
+
+        Ok(metadata.monorepo_metadata)
+    }
 }
 
-impl Target {
-    pub fn into_dist_target<'a>(
-        self,
-        name: String,
-        target_root: &Path,
-        package: &'a Package,
-    ) -> crate::Result<Box<dyn DistTarget + 'a>> {
+#[derive(Debug, Clone)]
+pub(crate) enum DistTargetMetadata {
+    Docker(DockerMetadata),
+    AwsLambda(AwsLambdaMetadata),
+}
+
+impl DistTargetMetadata {
+    pub(crate) fn into_dist_target<'g>(self, name: String, package: Package<'g>) -> DistTarget<'g> {
         match self {
-            Self::Docker(metadata) => {
-                metadata
-                    .into_dist_target(name, target_root, package)
-                    .map(|target| {
-                        let x: Box<dyn DistTarget> = Box::new(target);
-
-                        x
-                    })
-            }
-            Target::AwsLambda(metadata) => metadata
-                .into_dist_target(name, target_root, package)
-                .map(|target| {
-                    let x: Box<dyn DistTarget> = Box::new(target);
-
-                    x
-                }),
+            DistTargetMetadata::Docker(docker) => docker.into_dist_target(name, package),
+            DistTargetMetadata::AwsLambda(lambda) => lambda.into_dist_target(name, package),
         }
     }
 }
 
-impl<'de> Deserialize<'de> for Target {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+impl<'de> Deserialize<'de> for DistTargetMetadata {
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
     where
         D: Deserializer<'de>,
     {
@@ -79,10 +82,10 @@ impl<'de> Deserialize<'de> for Target {
         let helper = TargetHelper::deserialize(deserializer)?;
         match helper.target_type {
             TargetType::Docker => DockerMetadata::deserialize(helper.data)
-                .map(Target::Docker)
+                .map(DistTargetMetadata::Docker)
                 .map_err(serde::de::Error::custom),
             TargetType::AwsLambda => AwsLambdaMetadata::deserialize(helper.data)
-                .map(Target::AwsLambda)
+                .map(DistTargetMetadata::AwsLambda)
                 .map_err(serde::de::Error::custom),
         }
     }

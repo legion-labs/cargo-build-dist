@@ -61,7 +61,6 @@
 
 mod aws_lambda;
 mod context;
-mod dependency;
 mod dist_target;
 mod docker;
 mod errors;
@@ -73,13 +72,9 @@ mod sources;
 mod tags;
 mod term;
 
-pub use context::*;
-pub(crate) use dependency::{Dependencies, DependencyResolver};
-pub(crate) use dist_target::DistTarget;
-pub use dist_target::{Mode, Options};
+pub use context::{Context, ContextBuilder, Mode, Options};
 pub(crate) use errors::ErrorContext;
 pub use errors::{Error, Result};
 pub use hash::Hashable;
-pub(crate) use metadata::Metadata;
 pub use package::Package;
 pub use tags::Tags;

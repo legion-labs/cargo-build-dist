@@ -1,11 +1,10 @@
-use std::path::Path;
-
-use log::debug;
 use serde::Deserialize;
 
-use crate::{aws_lambda::AwsLambdaPackage, metadata::CopyCommand, Error, Package, Result};
+use crate::{
+    aws_lambda::AwsLambdaDistTarget, dist_target::DistTarget, metadata::CopyCommand, Package,
+};
 
-#[derive(Debug, Clone, Deserialize, Ord, PartialOrd, Eq, PartialEq)]
+#[derive(Debug, Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct AwsLambdaMetadata {
     pub s3_bucket: Option<String>,
@@ -16,8 +15,6 @@ pub struct AwsLambdaMetadata {
     #[serde(default = "default_target_runtime")]
     pub target_runtime: String,
     #[serde(default)]
-    pub binary: String,
-    #[serde(default)]
     pub extra_files: Vec<CopyCommand>,
 }
 
@@ -26,73 +23,11 @@ fn default_target_runtime() -> String {
 }
 
 impl AwsLambdaMetadata {
-    pub fn into_dist_target<'a>(
-        self,
-        name: String,
-        target_root: &Path,
-        package: &'a Package,
-    ) -> Result<AwsLambdaPackage<'a>> {
-        debug!("Package has an AWS Lambda target distribution.");
-
-        let binaries: Vec<_> = package
-            .metadata_package()
-            .targets
-            .iter()
-            .filter_map(|target| {
-                if target.kind.contains(&"bin".to_string()) {
-                    Some(target.name.clone())
-                } else {
-                    None
-                }
-            })
-            .collect();
-
-        if binaries.is_empty() {
-            return Err(
-                Error::new("package contain no binaries").with_explanation(
-                    format!(
-                        "Building an AWS Lambda requires at least one binary but the package {} does not contain any.",
-                        package.id(),
-                    ),
-                ),
-            );
-        }
-
-        let binary = if self.binary.is_empty() {
-            if binaries.len() > 1 {
-                return Err(
-                    Error::new("no binary specified").with_explanation(
-                        format!(
-                            "Building an AWS Lambda requires a single binary for the package {} but no specific one was configured and the package contains multiple binaries: {}",
-                            package.id(), binaries.join(", "),
-                        ),
-                    ),
-                );
-            }
-
-            binaries[0].clone()
-        } else if !binaries.contains(&self.binary) {
-            return Err(
-                Error::new("package contains no binary with the specified name").with_explanation(
-                    format!(
-                        "The package {} does not contain a binary with the name {}.",
-                        package.id(),
-                        self.binary
-                    ),
-                ),
-            );
-        } else {
-            self.binary.clone()
-        };
-
-        debug!("Package uses the following binary: {}", binary);
-
-        Ok(AwsLambdaPackage {
+    pub(crate) fn into_dist_target<'g>(self, name: String, package: Package<'g>) -> DistTarget<'g> {
+        DistTarget::AwsLambda(AwsLambdaDistTarget {
             name,
-            binary,
-            metadata: self,
-            target_root: target_root.to_path_buf(),
             package,
+            metadata: self,
         })
     }
 }

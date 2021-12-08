@@ -14,8 +14,8 @@ use log::{debug, warn};
 use regex::Regex;
 
 use crate::{
-    action_step, ignore_step, rust::is_current_target_runtime, DistTarget, Error, ErrorContext,
-    Options, Package, Result,
+    action_step, ignore_step, rust::is_current_target_runtime, Context, Error, ErrorContext,
+    Package, Result,
 };
 
 use super::DockerMetadata;
@@ -23,49 +23,44 @@ use super::DockerMetadata;
 pub const DEFAULT_DOCKER_REGISTRY_ENV_VAR_NAME: &str = "CARGO_MONOREPO_DOCKER_REGISTRY";
 
 #[derive(Debug)]
-pub struct DockerPackage<'a> {
+pub struct DockerDistTarget<'g> {
     pub name: String,
+    pub package: Package<'g>,
     pub metadata: DockerMetadata,
-    pub target_root: PathBuf,
-    pub package: &'a Package,
 }
 
-impl Display for DockerPackage<'_> {
+impl Display for DockerDistTarget<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "docker[{} {}]", self.package, self.package.version())
+        write!(f, "docker[{}]", self.package)
     }
 }
 
-impl DistTarget for DockerPackage<'_> {
-    fn package(&self) -> &Package {
-        self.package
-    }
-
-    fn build(&self, options: &crate::Options) -> Result<()> {
+impl<'g> DockerDistTarget<'g> {
+    pub fn build(&self, context: &Context) -> Result<()> {
         if cfg!(windows) {
             ignore_step!("Unsupported", "Docker build is not supported on Windows");
             return Ok(());
         }
 
-        self.clean(options)?;
+        self.clean(context)?;
 
-        let binaries = self.build_binaries(options)?;
-        let dockerfile = self.write_dockerfile(options, &binaries)?;
-        self.copy_binaries(options, &binaries)?;
-        self.copy_extra_files(options)?;
+        let binaries = self.build_binaries(context)?;
+        let dockerfile = self.write_dockerfile(context, &binaries)?;
+        self.copy_binaries(context, &binaries)?;
+        self.copy_extra_files(context)?;
 
-        self.build_dockerfile(options, &dockerfile)?;
+        self.build_dockerfile(context, &dockerfile)?;
 
         Ok(())
     }
 
-    fn publish(&self, options: &crate::Options) -> Result<()> {
+    pub fn publish(&self, context: &Context) -> Result<()> {
         if cfg!(windows) {
             ignore_step!("Unsupported", "Docker publish is not supported on Windows");
             return Ok(());
         }
 
-        if options.mode.is_debug() && !options.force {
+        if context.options().mode.is_debug() && !context.options().force {
             ignore_step!(
                 "Unsupported",
                 "Docker images can't be published in debug mode unless `--force` is specified"
@@ -73,14 +68,12 @@ impl DistTarget for DockerPackage<'_> {
             return Ok(());
         }
 
-        self.push_docker_image(options)?;
+        self.push_docker_image(context)?;
 
         Ok(())
     }
-}
 
-impl DockerPackage<'_> {
-    fn pull_docker_image(docker_image_name: &str, options: &crate::Options) -> Result<bool> {
+    fn pull_docker_image(docker_image_name: &str, context: &Context) -> Result<bool> {
         let mut cmd = Command::new("docker");
 
         debug!(
@@ -94,7 +87,7 @@ impl DockerPackage<'_> {
 
         cmd.args(args);
 
-        if options.verbose {
+        if context.options().verbose {
             let status = cmd.status().map_err(Error::from_source).with_full_context(
                 "failed to pull Docker image",
                 "The pull of the Docker image failed which could indicate a configuration problem.",
@@ -111,13 +104,13 @@ impl DockerPackage<'_> {
         }
     }
 
-    fn push_docker_image(&self, options: &crate::Options) -> Result<()> {
+    fn push_docker_image(&self, context: &Context) -> Result<()> {
         let mut cmd = Command::new("docker");
         let docker_image_name = self.docker_image_name()?;
 
-        if options.force {
+        if context.options().force {
             debug!("`--force` specified: not checking for Docker image existence before pushing");
-        } else if Self::pull_docker_image(&docker_image_name, options)? {
+        } else if Self::pull_docker_image(&docker_image_name, context)? {
             ignore_step!(
                 "Up-to-date",
                 "Docker image `{}` already exists",
@@ -137,7 +130,7 @@ impl DockerPackage<'_> {
             if self.metadata.allow_aws_ecr_creation {
                 debug!("AWS ECR repository creation is allowed for this target");
 
-                if options.dry_run {
+                if context.options().dry_run {
                     warn!(
                         "`--dry-run` specified, will not really ensure the ECR repository exists"
                     );
@@ -155,7 +148,7 @@ impl DockerPackage<'_> {
 
         let args = vec!["push", &docker_image_name];
 
-        if options.dry_run {
+        if context.options().dry_run {
             warn!("Would now execute: docker {}", args.join(" "));
             warn!("`--dry-run` specified: not continuing for real");
 
@@ -166,7 +159,7 @@ impl DockerPackage<'_> {
 
         cmd.args(args);
 
-        if options.verbose {
+        if context.options().verbose {
             let status = cmd.status().map_err(Error::from_source).with_full_context(
                 "failed to push Docker image",
                 "The push of the Docker image failed which could indicate a configuration problem.",
@@ -262,7 +255,7 @@ impl DockerPackage<'_> {
         })
     }
 
-    fn build_dockerfile(&self, options: &crate::Options, docker_file: &Path) -> Result<()> {
+    fn build_dockerfile(&self, context: &Context, docker_file: &Path) -> Result<()> {
         let mut cmd = Command::new("docker");
         let docker_image_name = self.docker_image_name()?;
 
@@ -283,7 +276,7 @@ impl DockerPackage<'_> {
         // Disable the annoying `Use 'docker scan' to run Snyk tests` message.
         cmd.env("DOCKER_SCAN_SUGGEST", "false");
 
-        if options.verbose {
+        if context.options().verbose {
             let status = cmd.status().map_err(Error::from_source).with_full_context(
                 "failed to build Docker image",
                 "The build of the Docker image failed which could indicate a configuration problem.",
@@ -347,36 +340,37 @@ impl DockerPackage<'_> {
         )))
     }
 
-    fn target_dir(&self, options: &Options) -> PathBuf {
-        self.target_root.join(options.mode.to_string())
+    fn target_dir(&self, context: &Context) -> PathBuf {
+        context
+            .target_root()
+            .unwrap()
+            .join(context.options().mode.to_string())
     }
 
-    fn docker_root(&self, options: &Options) -> PathBuf {
-        self.target_dir(options)
+    fn docker_root(&self, context: &Context) -> PathBuf {
+        self.target_dir(context)
             .join("docker")
             .join(self.package.name())
     }
 
-    fn docker_target_bin_dir(&self, options: &Options) -> PathBuf {
+    fn docker_target_bin_dir(&self, context: &Context) -> PathBuf {
         let relative_target_bin_dir = self
             .metadata
             .target_bin_dir
             .strip_prefix("/")
             .unwrap_or(&self.metadata.target_bin_dir);
 
-        self.docker_root(options).join(relative_target_bin_dir)
+        self.docker_root(context).join(relative_target_bin_dir)
     }
 
-    fn build_binaries(&self, options: &Options) -> Result<Vec<PathBuf>> {
-        let config = cargo::util::config::Config::default().unwrap();
-        let ws = self.package.workspace(&config)?;
-
-        let mut compile_options = CompileOptions::new(&config, CompileMode::Build).unwrap();
+    fn build_binaries(&self, context: &Context) -> Result<Vec<PathBuf>> {
+        let ws = context.workspace()?;
+        let mut compile_options = CompileOptions::new(ws.config(), CompileMode::Build).unwrap();
 
         compile_options.spec =
             cargo::ops::Packages::Packages(vec![self.package.name().to_string()]);
         compile_options.build_config.requested_profile =
-            cargo::util::interning::InternedString::new(&options.mode.to_string());
+            cargo::util::interning::InternedString::new(&context.options().mode.to_string());
 
         if !is_current_target_runtime(&self.metadata.target_runtime)? {
             compile_options.build_config.requested_kinds =
@@ -396,10 +390,10 @@ impl DockerPackage<'_> {
             .map_err(|err| Error::new("failed to compile Docker binaries").with_source(err))
     }
 
-    fn copy_binaries(&self, options: &Options, source_binaries: &[PathBuf]) -> Result<()> {
+    fn copy_binaries(&self, context: &Context, source_binaries: &[PathBuf]) -> Result<()> {
         debug!("Will now copy all dependant binaries");
 
-        let docker_target_bin_dir = self.docker_target_bin_dir(options);
+        let docker_target_bin_dir = self.docker_target_bin_dir(context);
 
         std::fs::create_dir_all(&docker_target_bin_dir)
             .map_err(Error::from_source)
@@ -410,7 +404,7 @@ impl DockerPackage<'_> {
 
         for source in source_binaries {
             let binary = source.file_name().unwrap().to_string_lossy().to_string();
-            let target = self.docker_target_bin_dir(options).join(&binary);
+            let target = self.docker_target_bin_dir(context).join(&binary);
 
             debug!("Copying {} to {}", source.display(), target.display());
 
@@ -428,10 +422,10 @@ impl DockerPackage<'_> {
         Ok(())
     }
 
-    fn clean(&self, options: &Options) -> Result<()> {
+    fn clean(&self, context: &Context) -> Result<()> {
         debug!("Will now clean the build directory");
 
-        std::fs::remove_dir_all(&self.docker_root(options)).or_else(|err| match err.kind() {
+        std::fs::remove_dir_all(&self.docker_root(context)).or_else(|err| match err.kind() {
             std::io::ErrorKind::NotFound => Ok(()),
             _ => Err(Error::new("failed to clean the docker root directory").with_source(err)),
         })?;
@@ -439,22 +433,22 @@ impl DockerPackage<'_> {
         Ok(())
     }
 
-    fn copy_extra_files(&self, options: &Options) -> Result<()> {
+    fn copy_extra_files(&self, context: &Context) -> Result<()> {
         debug!("Will now copy all extra files");
 
         for copy_command in &self.metadata.extra_files {
-            copy_command.copy_files(&self.package.root(), &self.docker_root(options))?;
+            copy_command.copy_files(&self.package.root(), &self.docker_root(context))?;
         }
 
         Ok(())
     }
 
-    fn write_dockerfile(&self, options: &Options, binaries: &[PathBuf]) -> Result<PathBuf> {
+    fn write_dockerfile(&self, context: &Context, binaries: &[PathBuf]) -> Result<PathBuf> {
         let dockerfile = self.generate_dockerfile(binaries)?;
 
         debug!("Generated Dockerfile:\n{}", dockerfile);
 
-        let dockerfile_path = self.get_dockerfile_name(options);
+        let dockerfile_path = self.get_dockerfile_name(context);
         let dockerfile_root = dockerfile_path.parent();
 
         std::fs::create_dir_all(dockerfile_root.unwrap())
@@ -473,8 +467,8 @@ impl DockerPackage<'_> {
         Ok(dockerfile_path)
     }
 
-    fn get_dockerfile_name(&self, options: &Options) -> PathBuf {
-        self.docker_root(options).join("Dockerfile")
+    fn get_dockerfile_name(&self, context: &Context) -> PathBuf {
+        self.docker_root(context).join("Dockerfile")
     }
 
     fn generate_context(&self, binaries: &[PathBuf]) -> tera::Context {
@@ -543,7 +537,7 @@ ADD {{ extra_file }} {{ extra_file }}
     fn generate_dockerfile(&self, binaries: &[PathBuf]) -> Result<String> {
         let context = self.generate_context(binaries);
 
-        tera::Tera::one_off(&self.metadata.template, &context, false)
+        self.metadata.template.render("dockerfile", &context)
             .map_err(Error::from_source).with_full_context(
                 "failed to render Dockerfile template",
                 "The specified Dockerfile template could not rendered properly, which may indicate a possible syntax error."

@@ -1,3 +1,4 @@
+use semver::Version;
 use sha2::{Digest, Sha256};
 use std::{io::Write, path::PathBuf};
 
@@ -16,10 +17,12 @@ pub trait Hashable {
 #[derive(Debug, Clone)]
 pub enum HashItem<'a> {
     String(&'a str),
+    Version(&'a Version),
     Bytes(&'a [u8]),
     Path(&'a PathBuf),
     Named(&'a str, Box<HashItem<'a>>),
     List(Vec<HashItem<'a>>),
+    Raw(Vec<u8>),
 }
 
 impl<'a> From<&'a str> for HashItem<'a> {
@@ -31,6 +34,12 @@ impl<'a> From<&'a str> for HashItem<'a> {
 impl<'a> From<&'a String> for HashItem<'a> {
     fn from(val: &'a String) -> Self {
         HashItem::String(val)
+    }
+}
+
+impl<'a> From<&'a Version> for HashItem<'a> {
+    fn from(val: &'a Version) -> Self {
+        HashItem::Version(val)
     }
 }
 
@@ -70,6 +79,10 @@ impl<'a> HashItem<'a> {
                 w.write_all(&(s.len() as u128).to_be_bytes())?;
                 w.write_all(s.as_bytes())?;
             }
+            HashItem::Version(v) => {
+                w.write_all(b"v")?;
+                w.write_all(v.to_string().as_bytes())?;
+            }
             HashItem::Bytes(b) => {
                 w.write_all(b"b")?;
                 w.write_all(&(b.len() as u128).to_be_bytes())?;
@@ -95,9 +108,19 @@ impl<'a> HashItem<'a> {
                     item.write_to(w)?;
                 }
             }
+            HashItem::Raw(raw) => {
+                w.write_all(raw)?;
+            }
         }
 
         Ok(())
+    }
+
+    pub fn to_raw(self) -> HashItem<'static> {
+        let mut raw = Vec::new();
+        self.write_to(&mut raw).unwrap();
+
+        HashItem::Raw(raw)
     }
 
     pub fn hash(&self) -> String {

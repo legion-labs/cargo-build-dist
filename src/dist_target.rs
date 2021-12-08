@@ -1,58 +1,34 @@
 use std::fmt::Display;
 
-use crate::{Package, Result};
+use crate::{aws_lambda::AwsLambdaDistTarget, docker::DockerDistTarget, Context, Result};
 
-/// A set of build options that can affect the packaging process.
-#[derive(Default)]
-pub struct Options {
-    pub dry_run: bool,
-    pub force: bool,
-    pub verbose: bool,
-    pub mode: Mode,
+#[derive(Debug)]
+pub(crate) enum DistTarget<'g> {
+    AwsLambda(AwsLambdaDistTarget<'g>),
+    Docker(DockerDistTarget<'g>),
 }
 
-pub(crate) trait DistTarget: Display {
-    fn package(&self) -> &Package;
-    fn build(&self, options: &Options) -> Result<()>;
-    fn publish(&self, options: &Options) -> Result<()>;
-}
-
-/// A build mode that can either be `Debug` or `Release`.
-#[derive(Debug, Clone)]
-pub enum Mode {
-    Debug,
-    Release,
-}
-
-impl Mode {
-    pub fn from_release_flag(release_flag: bool) -> Self {
-        if release_flag {
-            Self::Release
-        } else {
-            Self::Debug
+impl DistTarget<'_> {
+    pub fn build(&self, context: &Context) -> Result<()> {
+        match self {
+            DistTarget::AwsLambda(package) => package.build(context),
+            DistTarget::Docker(package) => package.build(context),
         }
     }
 
-    pub fn is_debug(&self) -> bool {
-        matches!(self, Self::Debug)
-    }
-
-    pub fn is_release(&self) -> bool {
-        matches!(self, Self::Release)
-    }
-}
-
-impl Default for Mode {
-    fn default() -> Self {
-        Self::Debug
+    pub fn publish(&self, context: &Context) -> Result<()> {
+        match self {
+            DistTarget::AwsLambda(package) => package.publish(context),
+            DistTarget::Docker(package) => package.publish(context),
+        }
     }
 }
 
-impl Display for Mode {
+impl Display for DistTarget<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Debug => write!(f, "debug"),
-            Self::Release => write!(f, "release"),
+            DistTarget::AwsLambda(package) => write!(f, "{}", package),
+            DistTarget::Docker(package) => write!(f, "{}", package),
         }
     }
 }

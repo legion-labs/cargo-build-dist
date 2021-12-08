@@ -2,18 +2,65 @@
 //! all relevant information for the rest of the commands.
 
 use git2::Repository;
+use guppy::graph::DependencyDirection;
 use log::debug;
-use std::{collections::BTreeSet, path::PathBuf, time::Instant};
+use std::{collections::BTreeSet, fmt::Display, path::PathBuf};
 
-use crate::{
-    action_step, ignore_step, sources::Sources, DistTarget, Error, Options, Package, Result,
-};
+use crate::{Error, Package, Result};
 
+#[derive(Default, Debug)]
+pub struct Options {
+    pub dry_run: bool,
+    pub force: bool,
+    pub verbose: bool,
+    pub mode: Mode,
+}
+
+/// A build mode that can either be `Debug` or `Release`.
+#[derive(Debug, Clone)]
+pub enum Mode {
+    Debug,
+    Release,
+}
+
+impl Mode {
+    pub fn from_release_flag(release_flag: bool) -> Self {
+        if release_flag {
+            Self::Release
+        } else {
+            Self::Debug
+        }
+    }
+
+    pub fn is_debug(&self) -> bool {
+        matches!(self, Self::Debug)
+    }
+
+    pub fn is_release(&self) -> bool {
+        matches!(self, Self::Release)
+    }
+}
+
+impl Default for Mode {
+    fn default() -> Self {
+        Self::Debug
+    }
+}
+
+impl Display for Mode {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Debug => write!(f, "debug"),
+            Self::Release => write!(f, "release"),
+        }
+    }
+}
 /// Build a context from the current environment and optionally provided
 /// attributes.
 #[derive(Default)]
 pub struct ContextBuilder {
     manifest_path: Option<PathBuf>,
+    options: Options,
 }
 
 impl ContextBuilder {
@@ -34,7 +81,7 @@ impl ContextBuilder {
         let manifest_path = std::fs::canonicalize(manifest_path)
             .map_err(|err| Error::new("could not find Cargo.toml").with_source(err))?;
 
-        Context::new(manifest_path)
+        Context::new(manifest_path, self.options)
     }
 
     /// Specify the path to the manifest file to use.
@@ -46,11 +93,20 @@ impl ContextBuilder {
 
         self
     }
+
+    pub fn with_options(mut self, options: Options) -> Self {
+        self.options = options;
+
+        self
+    }
 }
 /// A build context.
+#[derive(Debug)]
 pub struct Context {
     manifest_path: PathBuf,
+    options: Options,
     config: cargo::util::Config,
+    package_graph: guppy::graph::PackageGraph,
 }
 
 impl Context {
@@ -59,43 +115,26 @@ impl Context {
         ContextBuilder::default()
     }
 
-    fn new(manifest_path: PathBuf) -> Result<Self> {
+    fn new(manifest_path: PathBuf, options: Options) -> Result<Self> {
         let config = cargo::util::config::Config::default()
             .map_err(|err| Error::new("failed to load Cargo configuration").with_source(err))?;
 
+        let mut cmd = guppy::MetadataCommand::new();
+        cmd.manifest_path(&manifest_path);
+
+        let package_graph = guppy::graph::PackageGraph::from_command(&mut cmd)
+            .map_err(|err| Error::new("failed to parse package graph").with_source(err))?;
+
         Ok(Self {
             manifest_path,
+            options,
             config,
+            package_graph,
         })
     }
 
-    fn get_global_metadata(&self) -> Result<cargo_metadata::Metadata> {
-        let mut cmd = cargo_metadata::MetadataCommand::new();
-
-        // MetadataCommand::new() would actually perform the same logic, but we
-        // want the error to be explicit if it happens.
-        let cargo = Self::get_cargo_path()?;
-
-        debug!("Using `cargo` at: {}", cargo.display());
-
-        cmd.cargo_path(cargo);
-        cmd.manifest_path(&self.manifest_path);
-
-        cmd.exec()
-            .map_err(|e| Error::new("failed to query cargo metadata").with_source(e))
-    }
-
-    fn get_cargo_path() -> Result<PathBuf> {
-        match std::env::var("CARGO") {
-            Ok(cargo) => Ok(PathBuf::from(&cargo)),
-            Err(e) => {
-                Err(
-                    Error::new("`cargo` not found")
-                    .with_source(e)
-                    .with_explanation("The `CARGO` environment variable was not set: it is usually set by `cargo` itself.\nMake sure that `cargo monorepo` is run through `cargo` by putting its containing folder in your `PATH`."),
-                )
-            }
-        }
+    pub fn options(&self) -> &Options {
+        &self.options
     }
 
     pub fn workspace(&self) -> Result<cargo::core::Workspace<'_>> {
@@ -103,62 +142,52 @@ impl Context {
             .map_err(|err| Error::new("failed to load Cargo workspace").with_source(err))
     }
 
-    pub fn packages(&self) -> Result<BTreeSet<Package>> {
+    pub fn target_root(&self) -> Result<PathBuf> {
         let workspace = self.workspace()?;
-        let metadata = self.get_global_metadata()?;
 
-        metadata
-            .workspace_members
-            .iter()
-            .map(|package_id| {
-                let package = &metadata[package_id];
+        Ok(workspace.target_dir().into_path_unlocked())
+    }
 
-                let pkg = workspace
-                    .members()
-                    .find(|pkg| pkg.name().as_str() == package.name)
-                    .ok_or_else(|| {
-                        Error::new("failed to find package").with_explanation(format!(
-                            "Could not find a package named `{}` in the current workspace.",
-                            package_id
-                        ))
-                    })?;
-
-                let sources = Sources::scan_package(pkg, &workspace)?;
-                Package::from(package, &metadata, sources)
-            })
+    pub fn packages(&self) -> Result<BTreeSet<Package<'_>>> {
+        self.package_graph
+            .packages()
+            .map(|package_metadata| Package::new(self, package_metadata))
             .collect()
     }
 
-    pub fn get_package_by_name(&self, name: &'_ str) -> Result<Package> {
-        self.packages()?.iter().find(|p| p.name() == name).cloned().ok_or_else(|| {
-                Error::new("package not found")
-                    .with_explanation(format!("The operation was attempted onto a package that was not found in the current workspace: {}", name))
-        })
+    pub fn resolve_package_by_name(&self, name: &str) -> Result<Package<'_>> {
+        let package_set = self.package_graph.resolve_package_name(name);
+
+        if package_set.is_empty() {
+            return Err(Error::new("package not found").with_explanation(format!(
+                "A cargo package with the given name ({}) could not be found.",
+                name
+            )));
+        }
+
+        let package_metadata = package_set
+            .packages(DependencyDirection::Forward)
+            .next()
+            .unwrap();
+
+        Package::new(self, package_metadata)
     }
 
-    pub fn get_packages_by_names<'a>(
+    pub fn resolve_packages_by_names<'b>(
         &self,
-        names: impl IntoIterator<Item = &'a str>,
-    ) -> Result<BTreeSet<Package>> {
+        names: impl IntoIterator<Item = &'b str>,
+    ) -> Result<BTreeSet<Package<'_>>> {
         names
             .into_iter()
-            .map(|name| self.get_package_by_name(name))
-            .collect::<Result<Vec<_>>>()
-            .map(|v| v.into_iter().collect())
+            .map(|name| self.resolve_package_by_name(name))
+            .collect()
     }
 
-    pub fn git_repository(&self) -> Result<Repository> {
-        let workspace = self.workspace()?;
-
-        Repository::open(workspace.root())
-            .map_err(|err| Error::new("failed to open Git repository").with_source(err))
-    }
-
-    pub fn get_changed_packages(&self, start: &str) -> Result<BTreeSet<Package>> {
-        let packages = self.packages()?;
+    pub fn resolve_changed_packages(&self, start: &str) -> Result<BTreeSet<Package<'_>>> {
         let changed_files = self.get_changed_files(start)?;
 
-        Ok(packages
+        Ok(self
+            .packages()?
             .into_iter()
             .filter(|p| {
                 for changed_file in &changed_files {
@@ -170,6 +199,11 @@ impl Context {
                 false
             })
             .collect())
+    }
+
+    fn git_repository(&self) -> Result<Repository> {
+        Repository::open(self.workspace()?.root())
+            .map_err(|err| Error::new("failed to open Git repository").with_source(err))
     }
 
     fn get_changed_files(&self, start: &str) -> Result<BTreeSet<PathBuf>> {
@@ -216,89 +250,80 @@ impl Context {
             .map(|p| p.into_iter().collect())
     }
 
-    fn get_dist_targets_for<'a>(
-        &self,
-        packages: &'a BTreeSet<Package>,
-    ) -> Result<Vec<Box<dyn DistTarget + 'a>>> {
-        let global_metadata = self.get_global_metadata()?;
-        let target_root = PathBuf::from(global_metadata.target_directory.as_path());
+    ///// Build all the collected distribution targets.
+    //pub fn build_dist_targets<'a>(
+    //    &self,
+    //    packages: impl IntoIterator<Item = &'a Package>,
+    //) -> Result<()> {
+    //    let dist_targets: Vec<&DistTarget> = Self::get_dist_targets_for(packages).collect();
 
-        Ok(packages
-            .iter()
-            .map(|package| package.resolve_dist_targets(&target_root))
-            .collect::<Result<Vec<Vec<Box<dyn DistTarget + 'a>>>>>()?
-            .into_iter()
-            .flatten()
-            .collect())
-    }
+    //    match dist_targets.len() {
+    //        0 => {}
+    //        1 => action_step!("Processing", "one distribution target",),
+    //        x => action_step!("Processing", "{} distribution targets", x),
+    //    };
 
-    /// Build all the collected distribution targets.
-    pub fn build_dist_targets(
-        &self,
-        packages: &BTreeSet<Package>,
-        options: &Options,
-    ) -> Result<()> {
-        let dist_targets = self.get_dist_targets_for(packages)?;
+    //    for dist_target in dist_targets {
+    //        action_step!("Building", dist_target.to_string());
+    //        let now = Instant::now();
 
-        match dist_targets.len() {
-            0 => {}
-            1 => action_step!("Processing", "one distribution target",),
-            x => action_step!("Processing", "{} distribution targets", x),
-        };
+    //        dist_target.build(self)?;
 
-        for dist_target in &dist_targets {
-            action_step!("Building", dist_target.to_string());
-            let now = Instant::now();
+    //        action_step!(
+    //            "Finished",
+    //            "{} in {:.2}s",
+    //            dist_target,
+    //            now.elapsed().as_secs_f64()
+    //        );
+    //    }
 
-            dist_target.build(options)?;
+    //    Ok(())
+    //}
 
-            action_step!(
-                "Finished",
-                "{} in {:.2}s",
-                dist_target,
-                now.elapsed().as_secs_f64()
-            );
-        }
+    ///// Publish all the collected distribution targets.
+    //pub fn publish_dist_targets<'a>(
+    //    &self,
+    //    packages: impl IntoIterator<Item = &'a Package>,
+    //) -> Result<()> {
+    //    let dist_targets: Vec<&DistTarget> = Self::get_dist_targets_for(packages).collect();
 
-        Ok(())
-    }
+    //    match dist_targets.len() {
+    //        0 => {}
+    //        1 => action_step!("Processing", "one distribution target",),
+    //        x => action_step!("Processing", "{} distribution targets", x),
+    //    };
 
-    /// Publish all the collected distribution targets.
-    pub fn publish_dist_targets(
-        &self,
-        packages: &BTreeSet<Package>,
-        options: &Options,
-    ) -> Result<()> {
-        let dist_targets = self.get_dist_targets_for(packages)?;
+    //    for dist_target in &dist_targets {
+    //        if dist_target.package().tag_matches()? {
+    //            action_step!("Publishing", dist_target.to_string());
+    //            let now = Instant::now();
 
-        match dist_targets.len() {
-            0 => {}
-            1 => action_step!("Processing", "one distribution target",),
-            x => action_step!("Processing", "{} distribution targets", x),
-        };
+    //            dist_target.publish(self)?;
 
-        for dist_target in &dist_targets {
-            if dist_target.package().tag_matches()? {
-                action_step!("Publishing", dist_target.to_string());
-                let now = Instant::now();
+    //            action_step!(
+    //                "Finished",
+    //                "{} in {:.2}s",
+    //                dist_target,
+    //                now.elapsed().as_secs_f64()
+    //            );
+    //        } else {
+    //            ignore_step!(
+    //                "Skipping",
+    //                "{} as the current hash does not match its tag",
+    //                dist_target,
+    //            );
+    //        }
+    //    }
 
-                dist_target.publish(options)?;
+    //    Ok(())
+    //}
 
-                action_step!(
-                    "Finished",
-                    "{} in {:.2}s",
-                    dist_target,
-                    now.elapsed().as_secs_f64()
-                );
-            } else {
-                ignore_step!(
-                    "Skipping",
-                    "{} as the current hash does not match its tag",
-                    dist_target,
-                );
-            }
-        }
-
-        Ok(())
-    }
+    //fn get_dist_targets_for<'a>(
+    //    packages: impl IntoIterator<Item = &'a Package>,
+    //) -> impl Iterator<Item = &'a DistTarget> {
+    //    packages
+    //        .into_iter()
+    //        .map(|package| package.dist_targets().iter())
+    //        .flatten()
+    //}
 }

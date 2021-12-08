@@ -1,19 +1,19 @@
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
-use log::debug;
 use serde::Deserialize;
 
-use crate::{metadata::CopyCommand, Error, ErrorContext, Package, Result};
+use crate::{dist_target::DistTarget, metadata::CopyCommand, Package};
 
-use super::DockerPackage;
+use super::DockerDistTarget;
 
-#[derive(Debug, Clone, Deserialize, Ord, PartialOrd, Eq, PartialEq)]
+#[derive(Debug, Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct DockerMetadata {
     pub registry: Option<String>,
     #[serde(default = "default_target_runtime")]
     pub target_runtime: String,
-    pub template: String,
+    #[serde(deserialize_with = "deserialize_template")]
+    pub template: tera::Tera,
     #[serde(default)]
     pub extra_files: Vec<CopyCommand>,
     #[serde(default)]
@@ -30,49 +30,27 @@ fn default_target_runtime() -> String {
     "x86_64-unknown-linux-gnu".to_string()
 }
 
+fn deserialize_template<'de, D>(data: D) -> std::result::Result<tera::Tera, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let s = String::deserialize(data)?;
+
+    let mut result = tera::Tera::default();
+
+    result
+        .add_raw_template("dockerfile", &s)
+        .map_err(serde::de::Error::custom)?;
+
+    Ok(result)
+}
+
 impl DockerMetadata {
-    pub fn into_dist_target<'a>(
-        self,
-        name: String,
-        target_root: &Path,
-        package: &'a Package,
-    ) -> Result<DockerPackage<'a>> {
-        debug!("Package has a Docker target distribution.");
-
-        let binaries: Vec<_> = package
-            .metadata_package()
-            .targets
-            .iter()
-            .filter_map(|target| {
-                if target.kind.contains(&"bin".to_string()) {
-                    Some(target.name.clone())
-                } else {
-                    None
-                }
-            })
-            .collect();
-
-        if binaries.is_empty() {
-            return Err(Error::new("package contain no binaries").with_explanation(format!("Building a Docker image requires at least one binary but the package {} does not contain any.", package.id())));
-        }
-
-        debug!(
-            "Package contains the following binaries: {}",
-            binaries.join(", ")
-        );
-
-        // Make sure the template is valid as soon as possible.
-        tera::Template::new("", None, &self.template)
-            .map_err(Error::from_source).with_full_context(
-                "failed to render Dockerfile template",
-                "The specified Dockerfile template could not be parsed, which may indicate a possible syntax error."
-            )?;
-
-        Ok(DockerPackage {
+    pub(crate) fn into_dist_target<'g>(self, name: String, package: Package<'g>) -> DistTarget<'g> {
+        DistTarget::Docker(DockerDistTarget {
             name,
-            metadata: self,
-            target_root: target_root.to_path_buf(),
             package,
+            metadata: self,
         })
     }
 }
