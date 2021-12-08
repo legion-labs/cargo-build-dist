@@ -3,8 +3,9 @@
 
 use git2::Repository;
 use guppy::graph::DependencyDirection;
+use itertools::Itertools;
 use log::debug;
-use std::{collections::BTreeSet, fmt::Display, path::PathBuf};
+use std::{fmt::Display, path::PathBuf};
 
 use crate::{Error, Package, Result};
 
@@ -148,11 +149,23 @@ impl Context {
         Ok(workspace.target_dir().into_path_unlocked())
     }
 
-    pub fn packages(&self) -> Result<BTreeSet<Package<'_>>> {
+    pub fn packages(&self) -> Result<Vec<Package<'_>>> {
         self.package_graph
             .packages()
-            .map(|package_metadata| Package::new(self, package_metadata))
-            .collect()
+            .filter_map(|package_metadata| {
+                if package_metadata.source().is_local() {
+                    Some(Package::new(self, package_metadata))
+                } else {
+                    None
+                }
+            })
+            .collect::<Result<Vec<_>>>()
+            .map(|packages| {
+                packages
+                    .into_iter()
+                    .sorted_by(|a, b| a.name().cmp(b.name()))
+                    .collect()
+            })
     }
 
     pub fn resolve_package_by_name(&self, name: &str) -> Result<Package<'_>> {
@@ -176,28 +189,34 @@ impl Context {
     pub fn resolve_packages_by_names<'b>(
         &self,
         names: impl IntoIterator<Item = &'b str>,
-    ) -> Result<BTreeSet<Package<'_>>> {
+    ) -> Result<Vec<Package<'_>>> {
         names
             .into_iter()
             .map(|name| self.resolve_package_by_name(name))
             .collect()
     }
 
-    pub fn resolve_changed_packages(&self, start: &str) -> Result<BTreeSet<Package<'_>>> {
+    pub fn resolve_changed_packages(&self, start: &str) -> Result<Vec<Package<'_>>> {
         let changed_files = self.get_changed_files(start)?;
 
         Ok(self
             .packages()?
             .into_iter()
-            .filter(|p| {
+            .filter_map(|p| {
                 for changed_file in &changed_files {
                     if p.sources().contains(changed_file) {
-                        return true;
+                        return Some(
+                            p.dependant_packages()
+                                .map(|packages| std::iter::once(p).chain(packages)),
+                        );
                     }
                 }
 
-                false
+                None
             })
+            .collect::<Result<Vec<_>>>()?
+            .into_iter()
+            .flatten()
             .collect())
     }
 
@@ -206,7 +225,7 @@ impl Context {
             .map_err(|err| Error::new("failed to open Git repository").with_source(err))
     }
 
-    fn get_changed_files(&self, start: &str) -> Result<BTreeSet<PathBuf>> {
+    fn get_changed_files(&self, start: &str) -> Result<Vec<PathBuf>> {
         let repo = self.git_repository()?;
         let start = repo
             .revparse_single(start)
@@ -227,27 +246,18 @@ impl Context {
 
         let mut result = Vec::new();
 
-        // 100 is as good a guess as any.
-        result.reserve(100);
-
         diff.print(git2::DiffFormat::NameOnly, |_, _, l| {
             let path = prefix.join(PathBuf::from(
                 std::str::from_utf8(l.content()).unwrap().trim_end(),
             ));
 
-            result.push(
-                std::fs::canonicalize(path)
-                    .map_err(|err| Error::new("failed to get canonical path").with_source(err)),
-            );
+            result.push(path);
 
             true
         })
         .map_err(|err| Error::new("failed to print diff").with_source(err))?;
 
-        result
-            .into_iter()
-            .collect::<Result<Vec<_>>>()
-            .map(|p| p.into_iter().collect())
+        Ok(result)
     }
 
     ///// Build all the collected distribution targets.
@@ -316,14 +326,5 @@ impl Context {
     //    }
 
     //    Ok(())
-    //}
-
-    //fn get_dist_targets_for<'a>(
-    //    packages: impl IntoIterator<Item = &'a Package>,
-    //) -> impl Iterator<Item = &'a DistTarget> {
-    //    packages
-    //        .into_iter()
-    //        .map(|package| package.dist_targets().iter())
-    //        .flatten()
     //}
 }

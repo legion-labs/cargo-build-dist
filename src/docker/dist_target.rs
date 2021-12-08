@@ -31,7 +31,7 @@ pub struct DockerDistTarget<'g> {
 
 impl Display for DockerDistTarget<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "docker[{}]", self.package)
+        write!(f, "docker[{}]", self.package.name())
     }
 }
 

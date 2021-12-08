@@ -26,10 +26,10 @@ impl Metadata {
         #[derive(Debug, Deserialize)]
         struct RootMetadata {
             #[serde(default)]
-            monorepo_metadata: Metadata,
+            monorepo: Metadata,
         }
 
-        let metadata: RootMetadata =
+        let metadata: Option<RootMetadata> =
             serde_json::from_value(package_metadata.metadata_table().clone()).map_err(|err| {
                 Error::new("failed to parse metadata")
                     .with_source(err)
@@ -39,7 +39,9 @@ impl Metadata {
                     ))
             })?;
 
-        Ok(metadata.monorepo_metadata)
+        Ok(metadata
+            .map(|metadata| metadata.monorepo)
+            .unwrap_or_default())
     }
 }
 
@@ -50,7 +52,7 @@ pub(crate) enum DistTargetMetadata {
 }
 
 impl DistTargetMetadata {
-    pub(crate) fn into_dist_target<'g>(self, name: String, package: Package<'g>) -> DistTarget<'g> {
+    pub(crate) fn into_dist_target(self, name: String, package: Package<'_>) -> DistTarget<'_> {
         match self {
             DistTargetMetadata::Docker(docker) => docker.into_dist_target(name, package),
             DistTargetMetadata::AwsLambda(lambda) => lambda.into_dist_target(name, package),

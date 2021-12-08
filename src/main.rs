@@ -394,7 +394,7 @@ fn run() -> Result<()> {
                 }
                 None => {
                     for package in context.packages()? {
-                        println!("{}={}", package, package.hash());
+                        println!("{}={}", package.name(), package.hash());
                     }
                 }
             };
@@ -408,7 +408,7 @@ fn run() -> Result<()> {
             };
 
             for package in packages {
-                println!("{}", package);
+                println!("{}", package.name());
             }
 
             Ok(())

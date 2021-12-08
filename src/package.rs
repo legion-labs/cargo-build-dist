@@ -1,4 +1,4 @@
-use std::{cmp::Ordering, ffi::OsStr, fmt::Display, path::Path, process::Command};
+use std::{cmp::Ordering, ffi::OsStr, path::Path, process::Command};
 
 use itertools::Itertools;
 
@@ -39,6 +39,13 @@ impl<'g> Package<'g> {
 
     pub fn version(&self) -> &semver::Version {
         self.package_metadata.version()
+    }
+
+    pub fn dependant_packages(&self) -> Result<Vec<Package<'g>>> {
+        self.package_metadata
+            .reverse_direct_links()
+            .map(|package_link| Package::new(self.context, package_link.from()))
+            .collect()
     }
 
     pub fn sources(&self) -> &Sources {
@@ -153,12 +160,6 @@ impl<'g> Package<'g> {
     //    tags.versions.insert(version.clone(), hash);
     //    tags.write_file(&tags_file)
     //}
-}
-
-impl Display for Package<'_> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.id())
-    }
 }
 
 impl Eq for Package<'_> {}

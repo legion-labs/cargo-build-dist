@@ -26,7 +26,7 @@ pub struct AwsLambdaDistTarget<'g> {
 
 impl Display for AwsLambdaDistTarget<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "aws-lambda[{}]", self.package)
+        write!(f, "aws-lambda[{}]", self.package.name())
     }
 }
 
