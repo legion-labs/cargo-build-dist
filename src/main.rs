@@ -52,7 +52,7 @@
 )]
 // END - Legion Labs lints v0.6
 // crate-specific exceptions:
-#![allow()]
+#![allow(clippy::too_many_lines)]
 
 use cargo_monorepo::{Context, Mode, Options, Package};
 use clap::{App, AppSettings, Arg, ArgMatches, SubCommand};
@@ -76,9 +76,14 @@ const ARG_FORCE: &str = "force";
 const ARG_PACKAGE: &str = "package";
 const ARG_PACKAGES: &str = "packages";
 const ARG_CHANGED_SINCE_GIT_REF: &str = "changed-since-git-ref";
+const ARG_COMMAND: &str = "command";
+const ARG_REMAINING_ARGS: &str = "remaining-args";
 
 const SUB_COMMAND_HASH: &str = "hash";
 const SUB_COMMAND_LIST: &str = "list";
+const SUB_COMMAND_BUILD: &str = "build";
+const SUB_COMMAND_TEST: &str = "test";
+const SUB_COMMAND_CLIPPY: &str = "clippy";
 const SUB_COMMAND_BUILD_DIST: &str = "build-dist";
 const SUB_COMMAND_PUBLISH_DIST: &str = "publish-dist";
 const SUB_COMMAND_EXEC: &str = "exec";
@@ -169,7 +174,6 @@ impl PackageSelection for clap::App<'_, '_> {
     }
 }
 
-#[allow(clippy::too_many_lines)]
 fn get_matches() -> clap::ArgMatches<'static> {
     let mut args: Vec<String> = std::env::args().collect();
 
@@ -252,25 +256,60 @@ fn get_matches() -> clap::ArgMatches<'static> {
         )
         .subcommand(
             SubCommand::with_name(SUB_COMMAND_BUILD_DIST)
-                .about("Build the distributable artifacts for the specified package")
+                .about("Build the distributable artifacts for the specified packages")
                 .with_package_selection()
         )
         .subcommand(
             SubCommand::with_name(SUB_COMMAND_PUBLISH_DIST)
-                .about("Publish the distributable artifacts for the specified package")
+                .about("Publish the distributable artifacts for the specified packages")
                 .with_package_selection()
+        )
+        .subcommand(
+            SubCommand::with_name(SUB_COMMAND_BUILD)
+                .about("Build the the specified packages")
+                .with_package_selection()
+                .arg(
+                    Arg::with_name(ARG_REMAINING_ARGS)
+                        .value_name("[remaining arguments]")
+                        .allow_hyphen_values(true)
+                        .multiple(true)
+                        .help("Invoke `cargo build` with these arguments"),
+                ),
+        )
+        .subcommand(
+            SubCommand::with_name(SUB_COMMAND_TEST)
+                .about("Test the the specified packages")
+                .with_package_selection()
+                .arg(
+                    Arg::with_name(ARG_REMAINING_ARGS)
+                        .value_name("[remaining arguments]")
+                        .allow_hyphen_values(true)
+                        .multiple(true)
+                        .help("Invoke `cargo test` with these arguments"),
+                ),
+        )
+        .subcommand(
+            SubCommand::with_name(SUB_COMMAND_CLIPPY)
+                .about("Runs clippy on the the specified packages")
+                .with_package_selection()
+                .arg(
+                    Arg::with_name(ARG_REMAINING_ARGS)
+                        .value_name("[remaining arguments]")
+                        .allow_hyphen_values(true)
+                        .multiple(true)
+                        .help("Invoke `cargo clippy` with these arguments"),
+                ),
         )
         .subcommand(
             SubCommand::with_name(SUB_COMMAND_EXEC)
                 .about("Execute a command in each of the specified packages directory or for all packages if no packages are specified")
                 .with_package_selection()
                 .arg(
-                    Arg::with_name("command")
+                    Arg::with_name(ARG_COMMAND)
                         .required(true)
+                        .allow_hyphen_values(true)
                         .multiple(true)
-                        .help(
-                            "The command to execute in each package",
-                        ),
+                        .help("The command to execute in each package"),
                 ),
         )
         .subcommand(
@@ -407,10 +446,64 @@ fn run() -> Result<()> {
 
             Ok(())
         }
+        (SUB_COMMAND_BUILD, Some(sub_matches)) => {
+            let packages = select_packages(&context, sub_matches)?;
+
+            let args: Vec<&str> = vec!["cargo", "build"]
+                .into_iter()
+                .chain(
+                    sub_matches
+                        .values_of(ARG_REMAINING_ARGS)
+                        .unwrap_or_default(),
+                )
+                .collect();
+
+            for package in packages {
+                package.execute(&args)?;
+            }
+
+            Ok(())
+        }
+        (SUB_COMMAND_TEST, Some(sub_matches)) => {
+            let packages = select_packages(&context, sub_matches)?;
+
+            let args: Vec<&str> = vec!["cargo", "test"]
+                .into_iter()
+                .chain(
+                    sub_matches
+                        .values_of(ARG_REMAINING_ARGS)
+                        .unwrap_or_default(),
+                )
+                .collect();
+
+            for package in packages {
+                package.execute(&args)?;
+            }
+
+            Ok(())
+        }
+        (SUB_COMMAND_CLIPPY, Some(sub_matches)) => {
+            let packages = select_packages(&context, sub_matches)?;
+
+            let args: Vec<&str> = vec!["cargo", "clippy"]
+                .into_iter()
+                .chain(
+                    sub_matches
+                        .values_of(ARG_REMAINING_ARGS)
+                        .unwrap_or_default(),
+                )
+                .collect();
+
+            for package in packages {
+                package.execute(&args)?;
+            }
+
+            Ok(())
+        }
         (SUB_COMMAND_EXEC, Some(sub_matches)) => {
             let packages = select_packages(&context, sub_matches)?;
 
-            let args: Vec<&str> = sub_matches.values_of("command").unwrap().collect();
+            let args: Vec<&str> = sub_matches.values_of(ARG_COMMAND).unwrap().collect();
 
             for package in packages {
                 package.execute(&args)?;
