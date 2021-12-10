@@ -1,10 +1,10 @@
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use crate::{
     aws_lambda::AwsLambdaDistTarget, dist_target::DistTarget, metadata::CopyCommand, Package,
 };
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct AwsLambdaMetadata {
     pub s3_bucket: Option<String>,

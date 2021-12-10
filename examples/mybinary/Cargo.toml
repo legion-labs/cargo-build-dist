@@ -18,6 +18,9 @@ path = "src/bar/main.rs"
 anyhow = "1"
 mylib = { path = "../mylib" }
 
+[package.metadata.monorepo.tags]
+"0.1.0" = "sha256:1816f92ac087a31eb270066946903210bcd306eeadafc8aa2cd5a0ad0c143470"
+
 [package.metadata.monorepo.simple-docker]
 type = "docker"
 template = """

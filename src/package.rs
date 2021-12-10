@@ -1,9 +1,15 @@
-use std::{ffi::OsStr, path::Path, process::Command};
+use std::{
+    ffi::OsStr,
+    io::{Read, Seek, Write},
+    path::Path,
+    process::Command,
+};
 
 use itertools::Itertools;
 
 use crate::{
-    action_step, hash::HashSource, metadata::Metadata, sources::Sources, Context, Error, Result,
+    action_step, hash::HashSource, ignore_step, metadata::Metadata, sources::Sources, Context,
+    Error, Result,
 };
 
 /// A package in the workspace.
@@ -38,6 +44,14 @@ impl<'g> Package<'g> {
 
     pub fn context(&self) -> &'g Context {
         self.context
+    }
+
+    pub(crate) fn package_metadata(&self) -> &guppy::graph::PackageMetadata<'g> {
+        &self.package_metadata
+    }
+
+    pub(crate) fn monorepo_metadata(&self) -> &Metadata {
+        &self.monorepo_metadata
     }
 
     pub fn id(&self) -> &guppy::PackageId {
@@ -96,6 +110,15 @@ impl<'g> Package<'g> {
     }
 
     pub fn publish_dist_targets(&self) -> Result<()> {
+        if !self.tag_matches()? {
+            ignore_step!(
+                "Skipping",
+                "publication as current hash does not match the registered one for this version"
+            );
+
+            return Ok(());
+        }
+
         for dist_target in self.monorepo_metadata.dist_targets(self) {
             action_step!("Publishing", "distribution {}", dist_target);
             let before = std::time::Instant::now();
@@ -105,10 +128,6 @@ impl<'g> Package<'g> {
         }
 
         Ok(())
-    }
-
-    pub fn tag(&self) -> Result<()> {
-        unimplemented!()
     }
 
     pub fn execute(
@@ -140,63 +159,89 @@ impl<'g> Package<'g> {
     }
 
     pub fn hash(&self) -> Result<String> {
-        Ok(HashSource::new(self.context, self.package_metadata)?.hash())
+        Ok(HashSource::new(self)?.hash())
     }
 
-    ///// Check that the current tag matches the current hash.
-    //pub fn tag_matches(&self, context: &Context) -> Result<bool> {
-    //    let tags = self.tags(context)?;
-    //    let version = self.version();
-    //    let hash = self.hash();
+    pub fn get_tag(&self, version: &semver::Version) -> Option<&String> {
+        self.monorepo_metadata.tags.get(version)
+    }
 
-    //    if let Some(current_hash) = tags.versions.get(version) {
-    //        return Ok(current_hash == &hash);
-    //    }
+    /// Check that the current tag matches the current hash.
+    pub fn tag_matches(&self) -> Result<bool> {
+        let version = self.version();
+        let hash = self.hash()?;
 
-    //    Ok(false)
-    //}
+        if let Some(current_hash) = self.get_tag(version) {
+            return Ok(current_hash == &hash);
+        }
 
-    ///// Tag the package with its current version and hash.
-    /////
-    ///// If a tag already exist for the version, the call will fail.
-    //pub fn tag(&self, options: &Options) -> Result<()> {
-    //    let version = self.version();
-    //    let hash = self.hash();
+        Ok(false)
+    }
 
-    //    let tags_file = Self::tags_file(&self.package);
-    //    let mut tags = Tags::read_file(&tags_file)?;
+    /// Tag the package with its current version and hash.
+    ///
+    /// If a tag already exist for the version, the call will fail.
+    pub fn tag(&self) -> Result<()> {
+        let version = self.version();
+        let hash = self.hash()?;
 
-    //    if let Some(current_hash) = tags.versions.get(version) {
-    //        if current_hash == &hash {
-    //            ignore_step!(
-    //                "Skipping",
-    //                "tagging {} as a tag with an identical hash `{}` exists already",
-    //                self.id(),
-    //                hash,
-    //            );
+        if let Some(current_hash) = self.get_tag(version) {
+            if current_hash == &hash {
+                ignore_step!(
+                    "Skipping",
+                    "tagging {} as a tag with an identical hash `{}` exists already",
+                    self.id(),
+                    hash,
+                );
 
-    //            return Ok(());
-    //        }
+                return Ok(());
+            }
 
-    //        if options.force {
-    //            action_step!("Re-tagging", "{} with hash `{}`", self.id(), &hash);
-    //            Ok(())
-    //        } else {
-    //            Err(Error::new("tag already exists for version")
-    //                .with_explanation(format!(
-    //                    "A tag for version `{}` already exists with a different hash `{}`. You may need to increment the package version number and try again.",
-    //                    version,
-    //                    current_hash,
-    //                ))
-    //            )
-    //        }
-    //    } else {
-    //        action_step!("Tagging", "{} with hash `{}`", self.id(), &hash);
+            if self.context.options().force {
+                action_step!("Re-tagging", "{} with hash `{}`", self.id(), &hash);
+                Ok(())
+            } else {
+                Err(Error::new("tag already exists for version")
+                    .with_explanation(format!(
+                        "A tag for version `{}` already exists with a different hash `{}`. You may need to increment the package version number and try again.",
+                        version,
+                        current_hash,
+                    ))
+                )
+            }
+        } else {
+            action_step!("Tagging", "{} with hash `{}`", self.id(), &hash);
 
-    //        Ok(())
-    //    }?;
+            Ok(())
+        }?;
 
-    //    tags.versions.insert(version.clone(), hash);
-    //    tags.write_file(&tags_file)
-    //}
+        let manifest_path = &self.package_metadata.manifest_path();
+        let mut manifest_file = std::fs::OpenOptions::new()
+            .read(true)
+            .write(true)
+            .open(manifest_path)
+            .map_err(|err| Error::new("failed to open manifest").with_source(err))?;
+
+        let mut manifest_data = String::default();
+
+        #[allow(clippy::verbose_file_reads)]
+        manifest_file
+            .read_to_string(&mut manifest_data)
+            .map_err(|err| Error::new("failed to read manifest").with_source(err))?;
+
+        let mut document = manifest_data
+            .parse::<toml_edit::Document>()
+            .map_err(|err| Error::new("failed to parse manifest").with_source(err))?;
+
+        document["package"]["metadata"]["monorepo"]["tags"][&version.to_string()] =
+            toml_edit::value(hash);
+
+        manifest_file
+            .seek(std::io::SeekFrom::Start(0))
+            .map_err(|err| Error::new("failed to rewind in manifest file").with_source(err))?;
+
+        manifest_file
+            .write_all(document.to_string().as_bytes())
+            .map_err(|err| Error::new("failed to write manifest").with_source(err))
+    }
 }

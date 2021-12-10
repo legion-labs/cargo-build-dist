@@ -547,7 +547,7 @@ ADD {{ extra_file }} {{ extra_file }}
     fn generate_dockerfile(&self, binaries: &HashMap<String, PathBuf>) -> Result<String> {
         let context = self.generate_context(binaries);
 
-        self.metadata.template.render("dockerfile", &context)
+        self.metadata.template.render(&context)
             .map_err(Error::from_source).with_full_context(
                 "failed to render Dockerfile template",
                 "The specified Dockerfile template could not rendered properly, which may indicate a possible syntax error."

@@ -69,11 +69,9 @@ mod metadata;
 mod package;
 mod rust;
 mod sources;
-mod tags;
 mod term;
 
 pub use context::{Context, ContextBuilder, Mode, Options};
 pub(crate) use errors::ErrorContext;
 pub use errors::{Error, Result};
 pub use package::Package;
-pub use tags::Tags;

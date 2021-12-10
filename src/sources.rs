@@ -9,6 +9,12 @@ use serde::Serialize;
 
 use crate::{context::Context, Error, Result};
 
+/// Represent the sources files for a package.
+///
+/// This structure does not only contain the rust source files but any file that
+/// belong to - and that can possibly be used by - the package.
+///
+/// As an exception, the manifest file is never included in this structure.
 #[derive(Debug, Clone, Serialize)]
 pub struct Sources(BTreeMap<PathBuf, Vec<u8>>);
 
@@ -48,10 +54,8 @@ impl Sources {
                 .map_err(|err| Error::new("failed to list files").with_source(err))?
                 .into_iter()
                 .chain(once(pkg.manifest_path().to_path_buf()))
-                .map(|path| {
-                    std::fs::read(&path)
-                        .map(|bytes| (path, bytes))
-                        .map_err(|err| Error::new("failed to read file").with_source(err))
+                .filter_map(|path| {
+                    (path != pkg.manifest_path()).then(|| Self::read_generic_file(path))
                 })
                 .collect::<Result<Vec<(PathBuf, Vec<u8>)>>>()?
                 .into_iter()
@@ -63,7 +67,9 @@ impl Sources {
         self.0.contains_key(path)
     }
 
-    pub fn remove(&mut self, path: &Path) -> Option<()> {
-        self.0.remove(path).map(|_| ())
+    pub fn read_generic_file(path: PathBuf) -> Result<(PathBuf, Vec<u8>)> {
+        std::fs::read(&path)
+            .map(|bytes| (path, bytes))
+            .map_err(|err| Error::new("failed to read file").with_source(err))
     }
 }

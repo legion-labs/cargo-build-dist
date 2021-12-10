@@ -1,8 +1,10 @@
+use std::collections::BTreeMap;
+
 use cargo_metadata::camino::Utf8Path;
 use serde::Serialize;
 use sha2::{Digest, Sha256};
 
-use crate::{sources::Sources, Context, Result};
+use crate::{metadata::DistTargetMetadata, sources::Sources, Package, Result};
 
 /// A structure whose sole purpose is to help compute a deterministic hash of a
 /// given package.
@@ -21,15 +23,14 @@ pub(crate) struct HashSource<'g> {
     edition: &'g str,
     links: Option<&'g str>,
     direct_links: Vec<String>,
-    sources: Sources,
+    sources: &'g Sources,
+    dist_targets: &'g BTreeMap<String, DistTargetMetadata>,
 }
 
 impl<'g> HashSource<'g> {
-    pub(crate) fn new(
-        context: &Context,
-        package_metadata: guppy::graph::PackageMetadata<'g>,
-    ) -> Result<Self> {
-        let direct_links = package_metadata
+    pub(crate) fn new(package: &'g Package<'g>) -> Result<Self> {
+        let direct_links = package
+            .package_metadata()
             .direct_links()
             .map(|link| {
                 let link_package = link.to();
@@ -38,30 +39,32 @@ impl<'g> HashSource<'g> {
                 // we actually depend on its hash instead of its id so that we
                 // cover all cases of that package changing.
                 if link_package.in_workspace() {
-                    context.resolve_package_by_name(link_package.name())?.hash()
+                    package
+                        .context()
+                        .resolve_package_by_name(link_package.name())?
+                        .hash()
                 } else {
                     Ok(link_package.id().to_string())
                 }
             })
             .collect::<Result<Vec<_>>>()?;
 
-        let sources = Sources::from_package(context, &package_metadata)?;
-
         Ok(Self {
-            name: package_metadata.name(),
-            version: package_metadata.version(),
-            authors: package_metadata.authors(),
-            description: package_metadata.description(),
-            license: package_metadata.license(),
-            license_file: package_metadata.license_file(),
-            categories: package_metadata.categories(),
-            keywords: package_metadata.keywords(),
-            readme: package_metadata.readme(),
-            repository: package_metadata.repository(),
-            edition: package_metadata.edition(),
-            links: package_metadata.links(),
+            name: package.package_metadata().name(),
+            version: package.package_metadata().version(),
+            authors: package.package_metadata().authors(),
+            description: package.package_metadata().description(),
+            license: package.package_metadata().license(),
+            license_file: package.package_metadata().license_file(),
+            categories: package.package_metadata().categories(),
+            keywords: package.package_metadata().keywords(),
+            readme: package.package_metadata().readme(),
+            repository: package.package_metadata().repository(),
+            edition: package.package_metadata().edition(),
+            links: package.package_metadata().links(),
             direct_links,
-            sources,
+            sources: package.sources(),
+            dist_targets: &package.monorepo_metadata().dist_targets,
         })
     }
 
