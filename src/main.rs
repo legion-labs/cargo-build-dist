@@ -54,7 +54,7 @@
 // crate-specific exceptions:
 #![allow()]
 
-use cargo_monorepo::{Context, Mode, Options};
+use cargo_monorepo::{Context, Mode, Options, Package};
 use clap::{App, AppSettings, Arg, ArgMatches, SubCommand};
 use log::debug;
 use std::{
@@ -140,6 +140,35 @@ fn main() -> std::result::Result<(), MainError> {
     run().map_err(MainError)
 }
 
+trait PackageSelection {
+    fn with_package_selection(self) -> Self;
+}
+
+impl PackageSelection for clap::App<'_, '_> {
+    fn with_package_selection(self) -> Self {
+        self.arg(
+            Arg::with_name(ARG_PACKAGES)
+                .long(ARG_PACKAGES)
+                .short("p")
+                .takes_value(true)
+                .multiple(true)
+                .require_delimiter(true)
+                .conflicts_with(ARG_CHANGED_SINCE_GIT_REF)
+                .help("A list of packages to execute the command for, separated by commas"),
+        )
+        .arg(
+            Arg::with_name(ARG_CHANGED_SINCE_GIT_REF)
+                .long(ARG_CHANGED_SINCE_GIT_REF)
+                .short("s")
+                .takes_value(true)
+                .conflicts_with(ARG_PACKAGES)
+                .help(
+                    "Only operate on the packages with changes since the specified Git reference",
+                ),
+        )
+    }
+}
+
 #[allow(clippy::too_many_lines)]
 fn get_matches() -> clap::ArgMatches<'static> {
     let mut args: Vec<String> = std::env::args().collect();
@@ -205,26 +234,7 @@ fn get_matches() -> clap::ArgMatches<'static> {
         )
         .subcommand(
             SubCommand::with_name(SUB_COMMAND_HASH)
-                .arg(
-                    Arg::with_name(ARG_PACKAGES)
-                        .long(ARG_PACKAGES)
-                        .short("p")
-                        .takes_value(true)
-                        .multiple(true)
-                        .require_delimiter(true)
-                        .conflicts_with(ARG_CHANGED_SINCE_GIT_REF)
-                        .help("A list of packagse to execute the command for, separated by commas"),
-                )
-                .arg(
-                    Arg::with_name(ARG_CHANGED_SINCE_GIT_REF)
-                        .long(ARG_CHANGED_SINCE_GIT_REF)
-                        .short("s")
-                        .takes_value(true)
-                        .conflicts_with(ARG_PACKAGES)
-                        .help(
-                            "Only list the packages with changes since the specified Git reference",
-                        ),
-                )
+                .with_package_selection()
                 .about("Print the hash of the specified package")
         )
         .subcommand(
@@ -243,74 +253,17 @@ fn get_matches() -> clap::ArgMatches<'static> {
         .subcommand(
             SubCommand::with_name(SUB_COMMAND_BUILD_DIST)
                 .about("Build the distributable artifacts for the specified package")
-                .arg(
-                    Arg::with_name(ARG_PACKAGES)
-                        .long(ARG_PACKAGES)
-                        .short("p")
-                        .takes_value(true)
-                        .multiple(true)
-                        .require_delimiter(true)
-                        .conflicts_with(ARG_CHANGED_SINCE_GIT_REF)
-                        .help("A list of packagse to execute the command for, separated by commas"),
-                )
-                .arg(
-                    Arg::with_name(ARG_CHANGED_SINCE_GIT_REF)
-                        .long(ARG_CHANGED_SINCE_GIT_REF)
-                        .short("s")
-                        .conflicts_with(ARG_PACKAGES)
-                        .takes_value(true)
-                        .help(
-                            "Execute the command in all the packages with changes since the specified Git reference",
-                        ),
-                ),
+                .with_package_selection()
         )
         .subcommand(
             SubCommand::with_name(SUB_COMMAND_PUBLISH_DIST)
                 .about("Publish the distributable artifacts for the specified package")
-                .arg(
-                    Arg::with_name(ARG_PACKAGES)
-                        .long(ARG_PACKAGES)
-                        .short("p")
-                        .takes_value(true)
-                        .multiple(true)
-                        .require_delimiter(true)
-                        .conflicts_with(ARG_CHANGED_SINCE_GIT_REF)
-                        .help("A list of packagse to execute the command for, separated by commas"),
-                )
-                .arg(
-                    Arg::with_name(ARG_CHANGED_SINCE_GIT_REF)
-                        .long(ARG_CHANGED_SINCE_GIT_REF)
-                        .short("s")
-                        .conflicts_with(ARG_PACKAGES)
-                        .takes_value(true)
-                        .help(
-                            "Execute the command in all the packages with changes since the specified Git reference",
-                        ),
-                ),
+                .with_package_selection()
         )
         .subcommand(
             SubCommand::with_name(SUB_COMMAND_EXEC)
                 .about("Execute a command in each of the specified packages directory or for all packages if no packages are specified")
-                .arg(
-                    Arg::with_name(ARG_PACKAGES)
-                        .long(ARG_PACKAGES)
-                        .short("p")
-                        .takes_value(true)
-                        .multiple(true)
-                        .require_delimiter(true)
-                        .conflicts_with(ARG_CHANGED_SINCE_GIT_REF)
-                        .help("A list of packagse to execute the command for, separated by commas"),
-                )
-                .arg(
-                    Arg::with_name(ARG_CHANGED_SINCE_GIT_REF)
-                        .long(ARG_CHANGED_SINCE_GIT_REF)
-                        .short("s")
-                        .conflicts_with(ARG_PACKAGES)
-                        .takes_value(true)
-                        .help(
-                            "Execute the command in all the packages with changes since the specified Git reference",
-                        ),
-                )
+                .with_package_selection()
                 .arg(
                     Arg::with_name("command")
                         .required(true)
@@ -389,6 +342,16 @@ fn make_options(matches: &ArgMatches<'_>) -> Options {
     }
 }
 
+fn select_packages<'g>(context: &'g Context, matches: &ArgMatches<'_>) -> Result<Vec<Package<'g>>> {
+    match matches.value_of(ARG_CHANGED_SINCE_GIT_REF) {
+        Some(git_ref) => context.resolve_changed_packages(git_ref),
+        None => match matches.values_of(ARG_PACKAGES) {
+            Some(packages_names) => context.resolve_packages_by_names(packages_names),
+            None => context.packages(),
+        },
+    }
+}
+
 fn run() -> Result<()> {
     let matches = get_matches();
 
@@ -406,13 +369,7 @@ fn run() -> Result<()> {
 
     match matches.subcommand() {
         (SUB_COMMAND_HASH, Some(sub_matches)) => {
-            let packages = match sub_matches.value_of(ARG_CHANGED_SINCE_GIT_REF) {
-                Some(git_ref) => context.resolve_changed_packages(git_ref)?,
-                None => match sub_matches.values_of(ARG_PACKAGES) {
-                    Some(packages_names) => context.resolve_packages_by_names(packages_names)?,
-                    None => context.packages()?,
-                },
-            };
+            let packages = select_packages(&context, sub_matches)?;
 
             for package in packages {
                 println!("{}={}", package.name(), package.hash()?);
@@ -433,13 +390,7 @@ fn run() -> Result<()> {
             Ok(())
         }
         (SUB_COMMAND_BUILD_DIST, Some(sub_matches)) => {
-            let packages = match sub_matches.value_of(ARG_CHANGED_SINCE_GIT_REF) {
-                Some(git_ref) => context.resolve_changed_packages(git_ref)?,
-                None => match sub_matches.values_of(ARG_PACKAGES) {
-                    Some(packages_names) => context.resolve_packages_by_names(packages_names)?,
-                    None => context.packages()?,
-                },
-            };
+            let packages = select_packages(&context, sub_matches)?;
 
             for package in packages {
                 package.build_dist_targets()?;
@@ -448,13 +399,7 @@ fn run() -> Result<()> {
             Ok(())
         }
         (SUB_COMMAND_PUBLISH_DIST, Some(sub_matches)) => {
-            let packages = match sub_matches.value_of(ARG_CHANGED_SINCE_GIT_REF) {
-                Some(git_ref) => context.resolve_changed_packages(git_ref)?,
-                None => match sub_matches.values_of(ARG_PACKAGES) {
-                    Some(packages_names) => context.resolve_packages_by_names(packages_names)?,
-                    None => context.packages()?,
-                },
-            };
+            let packages = select_packages(&context, sub_matches)?;
 
             for package in packages {
                 package.publish_dist_targets()?;
@@ -463,13 +408,7 @@ fn run() -> Result<()> {
             Ok(())
         }
         (SUB_COMMAND_EXEC, Some(sub_matches)) => {
-            let packages = match sub_matches.value_of(ARG_CHANGED_SINCE_GIT_REF) {
-                Some(git_ref) => context.resolve_changed_packages(git_ref)?,
-                None => match sub_matches.values_of(ARG_PACKAGES) {
-                    Some(packages_names) => context.resolve_packages_by_names(packages_names)?,
-                    None => context.packages()?,
-                },
-            };
+            let packages = select_packages(&context, sub_matches)?;
 
             let args: Vec<&str> = sub_matches.values_of("command").unwrap().collect();
 

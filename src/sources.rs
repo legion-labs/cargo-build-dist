@@ -28,7 +28,7 @@ impl Sources {
                 ))
             })?;
 
-        Sources::new(workspace, core_package)
+        Self::new(workspace, core_package)
     }
 
     fn new(workspace: &cargo::core::Workspace<'_>, pkg: &cargo::core::Package) -> Result<Self> {
