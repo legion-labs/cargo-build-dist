@@ -93,9 +93,8 @@ allow_aws_ecr_creation = true # Optional, defaults to false. Allows the creation
 target_bin_dir = "/usr/src/app/bin/" # Optional. The target directory in which to place the binaries. Defaults to "/bin".
 template = """
 FROM ubuntu:20.04
-{{ copy_all_binaries }}
-{{ copy_all_extra_files }}
-CMD [{{ binaries.0 }}]
+{{ copy_all }}
+CMD [{{ binaries["foo"] }}]
 """
 extra_files = [ # A list of extra files to copy into the Docker image.
     { source = "src/test/*", destination = "/usr/src/app/" }
