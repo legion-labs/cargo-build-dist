@@ -23,7 +23,7 @@ pub struct DockerMetadata {
 }
 
 fn default_target_bin_dir() -> PathBuf {
-    PathBuf::from("/bin")
+    PathBuf::from("/usr/local/bin")
 }
 
 fn default_target_runtime() -> String {

@@ -1,5 +1,5 @@
 use std::{
-    collections::HashSet,
+    collections::{HashMap, HashSet},
     fmt::Display,
     path::{Path, PathBuf},
     process::Command,
@@ -49,7 +49,7 @@ impl<'g> DockerDistTarget<'g> {
 
         let binaries = self.build_binaries()?;
         let dockerfile = self.write_dockerfile(&binaries)?;
-        self.copy_binaries(&binaries)?;
+        self.copy_binaries(binaries.values())?;
         self.copy_extra_files()?;
 
         self.build_dockerfile(&dockerfile)?;
@@ -364,7 +364,7 @@ impl<'g> DockerDistTarget<'g> {
         self.docker_root().join(relative_target_bin_dir)
     }
 
-    fn build_binaries(&self) -> Result<Vec<PathBuf>> {
+    fn build_binaries(&self) -> Result<HashMap<String, PathBuf>> {
         let ws = self.context().workspace()?;
         let mut compile_options = CompileOptions::new(ws.config(), CompileMode::Build).unwrap();
 
@@ -385,13 +385,16 @@ impl<'g> DockerDistTarget<'g> {
                 compilation
                     .binaries
                     .iter()
-                    .map(|b| b.path.clone())
+                    .map(|b| (b.unit.target.name().to_string(), b.path.clone()))
                     .collect()
             })
-            .map_err(|err| Error::new("failed to compile Docker binaries").with_source(err))
+            .map_err(|err| Error::new("failed to compile binaries").with_source(err))
     }
 
-    fn copy_binaries(&self, source_binaries: &[PathBuf]) -> Result<()> {
+    fn copy_binaries<'p>(
+        &self,
+        source_binaries: impl IntoIterator<Item = &'p PathBuf>,
+    ) -> Result<()> {
         debug!("Will now copy all dependant binaries");
 
         let docker_target_bin_dir = self.docker_target_bin_dir();
@@ -444,7 +447,7 @@ impl<'g> DockerDistTarget<'g> {
         Ok(())
     }
 
-    fn write_dockerfile(&self, binaries: &[PathBuf]) -> Result<PathBuf> {
+    fn write_dockerfile(&self, binaries: &HashMap<String, PathBuf>) -> Result<PathBuf> {
         let dockerfile = self.generate_dockerfile(binaries)?;
 
         debug!("Generated Dockerfile:\n{}", dockerfile);
@@ -472,20 +475,23 @@ impl<'g> DockerDistTarget<'g> {
         self.docker_root().join("Dockerfile")
     }
 
-    fn generate_context(&self, binaries: &[PathBuf]) -> tera::Context {
+    fn generate_context(&self, binaries: &HashMap<String, PathBuf>) -> tera::Context {
         let mut context = tera::Context::new();
 
         context.insert("package_name", self.package.name());
         context.insert("package_version", self.package.version());
 
-        let binaries: Vec<String> = binaries
+        let binaries: HashMap<_, _> = binaries
             .iter()
-            .map(|binary| {
-                self.metadata
-                    .target_bin_dir
-                    .join(binary.file_name().unwrap())
-                    .display()
-                    .to_string()
+            .map(|(name, binary)| {
+                (
+                    name,
+                    self.metadata
+                        .target_bin_dir
+                        .join(binary.file_name().unwrap())
+                        .display()
+                        .to_string(),
+                )
             })
             .collect();
 
@@ -500,12 +506,12 @@ impl<'g> DockerDistTarget<'g> {
 
         context.insert("extra_files", &extra_files);
 
-        // Add some helper for common patterns to improve user experience.
-
+        // Add some helpers for common patterns to improve user experience.
         let copy_all_binaries = tera::Tera::one_off(
             "
 # Copy all binaries to the Docker image.
-{% for binary in binaries -%}
+{% for name, binary in binaries -%}
+# Copy the binary `{{ name }}`.
 ADD {{ binary }} {{ binary }}
 {% endfor -%}
 # End of copy.
@@ -532,10 +538,13 @@ ADD {{ extra_file }} {{ extra_file }}
 
         context.insert("copy_all_extra_files", copy_all_extra_files.trim());
 
+        let copy_all = [copy_all_binaries, copy_all_extra_files].join("\n");
+        context.insert("copy_all", copy_all.trim());
+
         context
     }
 
-    fn generate_dockerfile(&self, binaries: &[PathBuf]) -> Result<String> {
+    fn generate_dockerfile(&self, binaries: &HashMap<String, PathBuf>) -> Result<String> {
         let context = self.generate_context(binaries);
 
         self.metadata.template.render("dockerfile", &context)

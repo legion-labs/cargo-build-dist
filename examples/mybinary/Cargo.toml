@@ -6,6 +6,14 @@ publish = false
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+[[bin]]
+name = "foo"
+path = "src/foo/main.rs"
+
+[[bin]]
+name = "bar"
+path = "src/bar/main.rs"
+
 [dependencies]
 anyhow = "1"
 mylib = { path = "../mylib" }
@@ -14,13 +22,13 @@ mylib = { path = "../mylib" }
 type = "docker"
 template = """
 FROM ubuntu:20.04
-{{ copy_all_binaries }}
-{{ copy_all_extra_files }}
-CMD [{{ binaries.0 }}]
+{{ copy_all }}
+CMD ["{{ binaries["foo"] }}"]
 """
 allow_aws_ecr_creation = true
 extra_files = [{ source = "src/subjects/*", destination = "/usr/src/app/" }]
 
 [package.metadata.monorepo.simple-lambda]
 type = "aws-lambda"
+binary = "bar"
 extra_files = [{ source = "src/subjects/*", destination = "/usr/src/app/" }]

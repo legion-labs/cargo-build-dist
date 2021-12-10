@@ -1,4 +1,5 @@
 use std::{
+    collections::HashMap,
     fmt::Display,
     io::Write,
     path::{Path, PathBuf},
@@ -245,6 +246,13 @@ impl<'g> AwsLambdaDistTarget<'g> {
     }
 
     fn build_binary(&self) -> Result<PathBuf> {
+        self.build_binaries()?.remove(&self.metadata.binary).ok_or_else(|| {
+            Error::new("failed to find the specified binary in the binaries list")
+                .with_explanation(format!("The configuration requires this AWS Lambda to use the `{}` binary but no such binary is declared in the crate. Was the name perhaps mistyped?", self.metadata.binary))
+        })
+    }
+
+    fn build_binaries(&self) -> Result<HashMap<String, PathBuf>> {
         let ws = self.context().workspace()?;
         let mut compile_options = CompileOptions::new(ws.config(), CompileMode::Build).unwrap();
 
@@ -261,8 +269,14 @@ impl<'g> AwsLambdaDistTarget<'g> {
         }
 
         compile(&ws, &compile_options)
-            .map(|compilation| compilation.binaries[0].path.clone())
-            .map_err(|err| Error::new("failed to compile AWS Lambda binary").with_source(err))
+            .map(|compilation| {
+                compilation
+                    .binaries
+                    .iter()
+                    .map(|b| (b.unit.target.name().to_string(), b.path.clone()))
+                    .collect()
+            })
+            .map_err(|err| Error::new("failed to compile binaries").with_source(err))
     }
 
     fn copy_binary(&self, source: &Path) -> Result<()> {

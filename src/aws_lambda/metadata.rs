@@ -16,6 +16,7 @@ pub struct AwsLambdaMetadata {
     pub target_runtime: String,
     #[serde(default)]
     pub extra_files: Vec<CopyCommand>,
+    pub binary: String,
 }
 
 fn default_target_runtime() -> String {
