@@ -5,10 +5,11 @@ use std::{
 };
 
 use cargo::core::Source;
+use serde::Serialize;
 
-use crate::{context::Context, hash::HashItem, Error, Hashable, Result};
+use crate::{context::Context, Error, Result};
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct Sources(BTreeMap<PathBuf, Vec<u8>>);
 
 impl Sources {
@@ -64,19 +65,5 @@ impl Sources {
 
     pub fn remove(&mut self, path: &Path) -> Option<()> {
         self.0.remove(path).map(|_| ())
-    }
-}
-
-impl Hashable for Sources {
-    fn as_hash_item(&self) -> crate::hash::HashItem<'_> {
-        self.0
-            .iter()
-            .map(|(path, bytes)| {
-                HashItem::List(vec![
-                    HashItem::named("path", path),
-                    HashItem::named("bytes", bytes),
-                ])
-            })
-            .collect()
     }
 }

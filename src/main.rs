@@ -205,8 +205,27 @@ fn get_matches() -> clap::ArgMatches<'static> {
         )
         .subcommand(
             SubCommand::with_name(SUB_COMMAND_HASH)
+                .arg(
+                    Arg::with_name(ARG_PACKAGES)
+                        .long(ARG_PACKAGES)
+                        .short("p")
+                        .takes_value(true)
+                        .multiple(true)
+                        .require_delimiter(true)
+                        .conflicts_with(ARG_CHANGED_SINCE_GIT_REF)
+                        .help("A list of packagse to execute the command for, separated by commas"),
+                )
+                .arg(
+                    Arg::with_name(ARG_CHANGED_SINCE_GIT_REF)
+                        .long(ARG_CHANGED_SINCE_GIT_REF)
+                        .short("s")
+                        .takes_value(true)
+                        .conflicts_with(ARG_PACKAGES)
+                        .help(
+                            "Only list the packages with changes since the specified Git reference",
+                        ),
+                )
                 .about("Print the hash of the specified package")
-                .arg(Arg::with_name(ARG_PACKAGE).help("A package to compute the hash for")),
         )
         .subcommand(
             SubCommand::with_name(SUB_COMMAND_LIST)
@@ -387,17 +406,17 @@ fn run() -> Result<()> {
 
     match matches.subcommand() {
         (SUB_COMMAND_HASH, Some(sub_matches)) => {
-            match sub_matches.value_of(ARG_PACKAGE) {
-                Some(package_name) => {
-                    let hash = context.resolve_package_by_name(package_name)?.hash();
-                    println!("{}", hash);
-                }
-                None => {
-                    for package in context.packages()? {
-                        println!("{}={}", package.name(), package.hash());
-                    }
-                }
+            let packages = match sub_matches.value_of(ARG_CHANGED_SINCE_GIT_REF) {
+                Some(git_ref) => context.resolve_changed_packages(git_ref)?,
+                None => match sub_matches.values_of(ARG_PACKAGES) {
+                    Some(packages_names) => context.resolve_packages_by_names(packages_names)?,
+                    None => context.packages()?,
+                },
             };
+
+            for package in packages {
+                println!("{}={}", package.name(), package.hash()?);
+            }
 
             Ok(())
         }

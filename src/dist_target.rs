@@ -2,7 +2,6 @@ use std::fmt::Display;
 
 use crate::{aws_lambda::AwsLambdaDistTarget, docker::DockerDistTarget, Context, Result};
 
-#[derive(Debug)]
 pub(crate) enum DistTarget<'g> {
     AwsLambda(AwsLambdaDistTarget<'g>),
     Docker(DockerDistTarget<'g>),

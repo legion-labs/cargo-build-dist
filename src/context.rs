@@ -153,7 +153,7 @@ impl Context {
         self.package_graph
             .packages()
             .filter_map(|package_metadata| {
-                if package_metadata.source().is_local() {
+                if package_metadata.source().is_workspace() {
                     Some(Package::new(self, package_metadata))
                 } else {
                     None

@@ -17,7 +17,6 @@ use super::AwsLambdaMetadata;
 
 pub const DEFAULT_AWS_LAMBDA_S3_BUCKET_ENV_VAR_NAME: &str = "CARGO_MONOREPO_AWS_LAMBDA_S3_BUCKET";
 
-#[derive(Debug)]
 pub struct AwsLambdaDistTarget<'g> {
     pub name: String,
     pub package: Package<'g>,

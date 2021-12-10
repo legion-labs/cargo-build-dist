@@ -75,6 +75,5 @@ mod term;
 pub use context::{Context, ContextBuilder, Mode, Options};
 pub(crate) use errors::ErrorContext;
 pub use errors::{Error, Result};
-pub use hash::Hashable;
 pub use package::Package;
 pub use tags::Tags;

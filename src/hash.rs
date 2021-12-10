@@ -1,164 +1,76 @@
-use semver::Version;
+use cargo_metadata::camino::Utf8Path;
+use serde::Serialize;
 use sha2::{Digest, Sha256};
-use std::{io::Write, path::PathBuf};
 
-pub trait Hashable {
-    fn hash(&self) -> String {
-        let mut state = Sha256::new();
-        self.as_hash_item().write_to(&mut state).unwrap();
-        format!("sha256:{:x}", state.finalize())
-    }
+use crate::{sources::Sources, Context, Result};
 
-    fn as_hash_item(&self) -> HashItem<'_>;
+/// A structure whose sole purpose is to help compute a deterministic hash of a
+/// given package.
+#[derive(Serialize)]
+pub(crate) struct HashSource<'g> {
+    name: &'g str,
+    version: &'g semver::Version,
+    authors: &'g [String],
+    description: Option<&'g str>,
+    license: Option<&'g str>,
+    license_file: Option<&'g Utf8Path>,
+    categories: &'g [String],
+    keywords: &'g [String],
+    readme: Option<&'g Utf8Path>,
+    repository: Option<&'g str>,
+    edition: &'g str,
+    links: Option<&'g str>,
+    direct_links: Vec<String>,
+    sources: Sources,
 }
 
-/// A hash item is a composable part of of a hash and helps achieving
-/// injectivity when hashing composite values.
-#[derive(Debug, Clone)]
-pub enum HashItem<'a> {
-    String(&'a str),
-    Version(&'a Version),
-    Bytes(&'a [u8]),
-    Path(&'a PathBuf),
-    Named(&'a str, Box<HashItem<'a>>),
-    List(Vec<HashItem<'a>>),
-    Raw(Vec<u8>),
-}
+impl<'g> HashSource<'g> {
+    pub(crate) fn new(
+        context: &Context,
+        package_metadata: guppy::graph::PackageMetadata<'g>,
+    ) -> Result<Self> {
+        let direct_links = package_metadata
+            .direct_links()
+            .map(|link| {
+                let link_package = link.to();
 
-impl<'a> From<&'a str> for HashItem<'a> {
-    fn from(val: &'a str) -> Self {
-        HashItem::String(val)
-    }
-}
-
-impl<'a> From<&'a String> for HashItem<'a> {
-    fn from(val: &'a String) -> Self {
-        HashItem::String(val)
-    }
-}
-
-impl<'a> From<&'a Version> for HashItem<'a> {
-    fn from(val: &'a Version) -> Self {
-        HashItem::Version(val)
-    }
-}
-
-impl<'a> From<&'a [u8]> for HashItem<'a> {
-    fn from(val: &'a [u8]) -> Self {
-        HashItem::Bytes(val)
-    }
-}
-
-impl<'a> From<&'a Vec<u8>> for HashItem<'a> {
-    fn from(val: &'a Vec<u8>) -> Self {
-        HashItem::Bytes(val)
-    }
-}
-
-impl<'a> From<&'a PathBuf> for HashItem<'a> {
-    fn from(val: &'a PathBuf) -> Self {
-        HashItem::Path(val)
-    }
-}
-
-impl<'a> FromIterator<HashItem<'a>> for HashItem<'a> {
-    fn from_iter<T: IntoIterator<Item = HashItem<'a>>>(iter: T) -> Self {
-        Self::List(iter.into_iter().collect())
-    }
-}
-
-impl<'a> HashItem<'a> {
-    pub fn named(name: &'a str, item: impl Into<Self>) -> Self {
-        HashItem::Named(name, Box::new(item.into()))
-    }
-
-    fn write_to(&self, w: &mut impl Write) -> std::io::Result<()> {
-        match self {
-            HashItem::String(s) => {
-                w.write_all(b"s")?;
-                w.write_all(&(s.len() as u128).to_be_bytes())?;
-                w.write_all(s.as_bytes())?;
-            }
-            HashItem::Version(v) => {
-                w.write_all(b"v")?;
-                w.write_all(v.to_string().as_bytes())?;
-            }
-            HashItem::Bytes(b) => {
-                w.write_all(b"b")?;
-                w.write_all(&(b.len() as u128).to_be_bytes())?;
-                w.write_all(b)?;
-            }
-            HashItem::Path(p) => {
-                w.write_all(b"p")?;
-                let s = p.to_string_lossy().into_owned();
-                w.write_all(&(s.len() as u128).to_be_bytes())?;
-                w.write_all(s.as_bytes())?;
-            }
-            HashItem::Named(name, item) => {
-                w.write_all(b"n")?;
-                w.write_all(&(name.len() as u128).to_be_bytes())?;
-                w.write_all(name.as_bytes())?;
-                item.write_to(w)?;
-            }
-            HashItem::List(items) => {
-                w.write_all(b"l")?;
-                w.write_all(&(items.len() as u128).to_be_bytes())?;
-
-                for item in items {
-                    item.write_to(w)?;
+                // If the package we depend on is a package from the workspace,
+                // we actually depend on its hash instead of its id so that we
+                // cover all cases of that package changing.
+                if link_package.in_workspace() {
+                    context.resolve_package_by_name(link_package.name())?.hash()
+                } else {
+                    Ok(link_package.id().to_string())
                 }
-            }
-            HashItem::Raw(raw) => {
-                w.write_all(raw)?;
-            }
-        }
+            })
+            .collect::<Result<Vec<_>>>()?;
 
-        Ok(())
+        let sources = Sources::from_package(context, &package_metadata)?;
+
+        Ok(Self {
+            name: package_metadata.name(),
+            version: package_metadata.version(),
+            authors: package_metadata.authors(),
+            description: package_metadata.description(),
+            license: package_metadata.license(),
+            license_file: package_metadata.license_file(),
+            categories: package_metadata.categories(),
+            keywords: package_metadata.keywords(),
+            readme: package_metadata.readme(),
+            repository: package_metadata.repository(),
+            edition: package_metadata.edition(),
+            links: package_metadata.links(),
+            direct_links,
+            sources,
+        })
     }
 
-    pub fn to_raw(self) -> HashItem<'static> {
-        let mut raw = Vec::new();
-        self.write_to(&mut raw).unwrap();
-
-        HashItem::Raw(raw)
-    }
-
-    pub fn hash(&self) -> String {
+    pub(crate) fn hash(&self) -> String {
         let mut state = Sha256::new();
-        self.write_to(&mut state).unwrap();
-        format!("{:x}", state.finalize())
-    }
-}
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+        // There is no reason for this write to ever fail so unwrap is fine.
+        serde_json::to_writer(&mut state, &self).unwrap();
 
-    #[test]
-    fn test_hash_item() {
-        let item = HashItem::List(vec![
-            HashItem::named("a", "a"),
-            HashItem::named("b", "b"),
-            HashItem::List(vec![HashItem::named("c", "c"), HashItem::named("d", "d")]),
-        ]);
-
-        // If you change the hash algorithm, this is is expected to break.
-        //
-        // Make sure this is intended though.
-        assert_eq!(
-            item.hash(),
-            "1c292ae624b26d6cdb8a0f874d05f52fa48d57e7fa34bac895c1590f08189f4a"
-        );
-    }
-
-    #[test]
-    fn test_hash_item_injective() {
-        let a = HashItem::List(vec![HashItem::List(vec![
-            HashItem::named("a", "a"),
-            HashItem::named("b", "b"),
-        ])]);
-        let b = HashItem::List(vec![HashItem::named("a", "a"), HashItem::named("b", "b")]);
-
-        assert_ne!(a.hash(), b.hash());
+        format!("sha256:{:x}", state.finalize())
     }
 }

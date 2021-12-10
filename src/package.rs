@@ -1,11 +1,13 @@
-use std::{cmp::Ordering, ffi::OsStr, path::Path, process::Command};
+use std::{ffi::OsStr, path::Path, process::Command};
 
 use itertools::Itertools;
 
-use crate::{action_step, metadata::Metadata, sources::Sources, Context, Error, Result};
+use crate::{
+    action_step, hash::HashSource, metadata::Metadata, sources::Sources, Context, Error, Result,
+};
 
 /// A package in the workspace.
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct Package<'g> {
     context: &'g Context,
     package_metadata: guppy::graph::PackageMetadata<'g>,
@@ -18,6 +20,11 @@ impl<'g> Package<'g> {
         context: &'g Context,
         package_metadata: guppy::graph::PackageMetadata<'g>,
     ) -> Result<Self> {
+        assert!(
+            package_metadata.in_workspace(),
+            "cannot build a Package instance from a non-workspace package"
+        );
+
         let monorepo_metadata = Metadata::new(&package_metadata)?;
         let sources = Sources::from_package(context, &package_metadata)?;
 
@@ -112,8 +119,8 @@ impl<'g> Package<'g> {
             .map_err(|err| Error::new("failed to execute command").with_source(err))
     }
 
-    pub fn hash(&self) -> String {
-        "hash".to_string()
+    pub fn hash(&self) -> Result<String> {
+        Ok(HashSource::new(self.context, self.package_metadata)?.hash())
     }
 
     ///// Check that the current tag matches the current hash.
@@ -172,24 +179,4 @@ impl<'g> Package<'g> {
     //    tags.versions.insert(version.clone(), hash);
     //    tags.write_file(&tags_file)
     //}
-}
-
-impl Eq for Package<'_> {}
-
-impl Ord for Package<'_> {
-    fn cmp(&self, other: &Self) -> Ordering {
-        self.id().cmp(&other.id())
-    }
-}
-
-impl PartialOrd for Package<'_> {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.cmp(other))
-    }
-}
-
-impl PartialEq for Package<'_> {
-    fn eq(&self, other: &Self) -> bool {
-        self.id() == other.id()
-    }
 }
