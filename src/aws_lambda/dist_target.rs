@@ -1,4 +1,8 @@
-use std::{fmt::Display, io::Write, path::PathBuf};
+use std::{
+    fmt::Display,
+    io::Write,
+    path::{Path, PathBuf},
+};
 
 use aws_config::meta::region::RegionProviderChain;
 use cargo::{
@@ -19,7 +23,7 @@ pub const DEFAULT_AWS_LAMBDA_S3_BUCKET_ENV_VAR_NAME: &str = "CARGO_MONOREPO_AWS_
 
 pub struct AwsLambdaDistTarget<'g> {
     pub name: String,
-    pub package: Package<'g>,
+    pub package: &'g Package<'g>,
     pub metadata: AwsLambdaMetadata,
 }
 
@@ -30,7 +34,11 @@ impl Display for AwsLambdaDistTarget<'_> {
 }
 
 impl<'g> AwsLambdaDistTarget<'g> {
-    pub fn build(&self, context: &Context) -> Result<()> {
+    pub fn context(&self) -> &'g Context {
+        self.package.context()
+    }
+
+    pub fn build(&self) -> Result<()> {
         if cfg!(windows) {
             ignore_step!(
                 "Unsupported",
@@ -39,18 +47,18 @@ impl<'g> AwsLambdaDistTarget<'g> {
             return Ok(());
         }
 
-        self.clean(context)?;
+        self.clean()?;
 
-        let binary = self.build_binary(context)?;
-        self.copy_binary(context, binary)?;
-        self.copy_extra_files(context)?;
+        let binary = self.build_binary()?;
+        self.copy_binary(&binary)?;
+        self.copy_extra_files()?;
 
-        self.build_zip_archive(context)?;
+        self.build_zip_archive()?;
 
         Ok(())
     }
 
-    pub fn publish(&self, context: &Context) -> Result<()> {
+    pub fn publish(&self) -> Result<()> {
         if cfg!(windows) {
             ignore_step!(
                 "Unsupported",
@@ -59,7 +67,7 @@ impl<'g> AwsLambdaDistTarget<'g> {
             return Ok(());
         }
 
-        if context.options().mode.is_debug() && !context.options().force {
+        if self.context().options().mode.is_debug() && !self.context().options().force {
             ignore_step!(
                 "Unsupported",
                 "AWS Lambda can't be published in debug mode unless `--force` is specified"
@@ -67,13 +75,13 @@ impl<'g> AwsLambdaDistTarget<'g> {
             return Ok(());
         }
 
-        self.upload_archive(context)?;
+        self.upload_archive()?;
 
         Ok(())
     }
 
-    fn upload_archive(&self, context: &Context) -> Result<()> {
-        let archive_path = self.archive_path(context);
+    fn upload_archive(&self) -> Result<()> {
+        let archive_path = self.archive_path();
         let runtime = tokio::runtime::Builder::new_current_thread()
             .enable_all()
             .build()
@@ -96,7 +104,7 @@ impl<'g> AwsLambdaDistTarget<'g> {
                 self.package.version()
             );
 
-            if context.options().force {
+            if self.context().options().force {
                 debug!("`--force` specified: not checking for the archive existence on S3 before uploading");
             } else {
                 let resp = client
@@ -131,7 +139,7 @@ impl<'g> AwsLambdaDistTarget<'g> {
                 );
             }
 
-            if context.options().dry_run {
+            if self.context().options().dry_run {
                 warn!("`--dry-run` specified, will not really upload the AWS Lambda archive to S3");
             } else {
                 let data = aws_sdk_s3::ByteStream::from_path(&archive_path)
@@ -163,12 +171,12 @@ impl<'g> AwsLambdaDistTarget<'g> {
         runtime.block_on(fut)
     }
 
-    fn archive_path(&self, context: &Context) -> PathBuf {
-        self.target_dir(context).join("aws-lambda.zip")
+    fn archive_path(&self) -> PathBuf {
+        self.target_dir().join("aws-lambda.zip")
     }
 
-    fn build_zip_archive(&self, context: &Context) -> Result<()> {
-        let archive_path = self.archive_path(context);
+    fn build_zip_archive(&self) -> Result<()> {
+        let archive_path = self.archive_path();
 
         action_step!("Packaging", "AWS Lambda archive");
 
@@ -177,7 +185,7 @@ impl<'g> AwsLambdaDistTarget<'g> {
                 .map_err(|err| Error::new("failed to create zip archive file").with_source(err))?,
         );
 
-        let lambda_root = &self.lambda_root(context);
+        let lambda_root = &self.lambda_root();
 
         for entry in WalkDir::new(lambda_root) {
             let entry = entry.map_err(|err| {
@@ -236,14 +244,14 @@ impl<'g> AwsLambdaDistTarget<'g> {
         Ok(())
     }
 
-    fn build_binary(&self, context: &Context) -> Result<PathBuf> {
-        let ws = context.workspace()?;
-        let mut compile_options = CompileOptions::new(&ws.config(), CompileMode::Build).unwrap();
+    fn build_binary(&self) -> Result<PathBuf> {
+        let ws = self.context().workspace()?;
+        let mut compile_options = CompileOptions::new(ws.config(), CompileMode::Build).unwrap();
 
         compile_options.spec =
             cargo::ops::Packages::Packages(vec![self.package.name().to_string()]);
         compile_options.build_config.requested_profile =
-            cargo::util::interning::InternedString::new(&context.options().mode.to_string());
+            cargo::util::interning::InternedString::new(&self.context().options().mode.to_string());
 
         if !is_current_target_runtime(&self.metadata.target_runtime)? {
             compile_options.build_config.requested_kinds =
@@ -257,10 +265,10 @@ impl<'g> AwsLambdaDistTarget<'g> {
             .map_err(|err| Error::new("failed to compile AWS Lambda binary").with_source(err))
     }
 
-    fn copy_binary(&self, context: &Context, source: PathBuf) -> Result<()> {
+    fn copy_binary(&self, source: &Path) -> Result<()> {
         debug!("Will now copy the dependant binary");
 
-        let lambda_root = self.lambda_root(context);
+        let lambda_root = self.lambda_root();
 
         std::fs::create_dir_all(&lambda_root)
             .map_err(Error::from_source)
@@ -287,10 +295,10 @@ impl<'g> AwsLambdaDistTarget<'g> {
         Ok(())
     }
 
-    fn clean(&self, context: &Context) -> Result<()> {
+    fn clean(&self) -> Result<()> {
         debug!("Will now clean the build directory");
 
-        std::fs::remove_dir_all(&self.lambda_root(context)).or_else(|err| match err.kind() {
+        std::fs::remove_dir_all(&self.lambda_root()).or_else(|err| match err.kind() {
             std::io::ErrorKind::NotFound => Ok(()),
             _ => Err(Error::new("failed to clean the lambda root directory").with_source(err)),
         })?;
@@ -316,25 +324,25 @@ impl<'g> AwsLambdaDistTarget<'g> {
         }
     }
 
-    fn target_dir(&self, context: &Context) -> PathBuf {
-        context
+    fn target_dir(&self) -> PathBuf {
+        self.context()
             .target_root()
             .unwrap()
             .join(&self.metadata.target_runtime)
-            .join(context.options().mode.to_string())
+            .join(self.context().options().mode.to_string())
     }
 
-    fn lambda_root(&self, context: &Context) -> PathBuf {
-        self.target_dir(context)
+    fn lambda_root(&self) -> PathBuf {
+        self.target_dir()
             .join("aws-lambda")
             .join(self.package.name())
     }
 
-    fn copy_extra_files(&self, context: &Context) -> Result<()> {
+    fn copy_extra_files(&self) -> Result<()> {
         debug!("Will now copy all extra files");
 
         for copy_command in &self.metadata.extra_files {
-            copy_command.copy_files(&self.package.root(), &self.lambda_root(context))?;
+            copy_command.copy_files(self.package.root(), &self.lambda_root())?;
         }
 
         Ok(())

@@ -22,7 +22,7 @@ pub(crate) struct Metadata {
 }
 
 impl Metadata {
-    pub(crate) fn new(package_metadata: &guppy::graph::PackageMetadata<'_>) -> Result<Metadata> {
+    pub(crate) fn new(package_metadata: &guppy::graph::PackageMetadata<'_>) -> Result<Self> {
         #[derive(Debug, Deserialize)]
         struct RootMetadata {
             #[serde(default)]
@@ -43,6 +43,15 @@ impl Metadata {
             .map(|metadata| metadata.monorepo)
             .unwrap_or_default())
     }
+
+    pub(crate) fn dist_targets<'g>(&self, package: &'g Package<'g>) -> Vec<DistTarget<'g>> {
+        self.dist_targets
+            .iter()
+            .map(|(name, dist_target_metadata)| {
+                dist_target_metadata.to_dist_target(name.clone(), package)
+            })
+            .collect()
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -52,10 +61,14 @@ pub(crate) enum DistTargetMetadata {
 }
 
 impl DistTargetMetadata {
-    pub(crate) fn into_dist_target(self, name: String, package: Package<'_>) -> DistTarget<'_> {
+    pub(crate) fn to_dist_target<'g>(
+        &self,
+        name: String,
+        package: &'g Package<'g>,
+    ) -> DistTarget<'g> {
         match self {
-            DistTargetMetadata::Docker(docker) => docker.into_dist_target(name, package),
-            DistTargetMetadata::AwsLambda(lambda) => lambda.into_dist_target(name, package),
+            DistTargetMetadata::Docker(docker) => docker.clone().into_dist_target(name, package),
+            DistTargetMetadata::AwsLambda(lambda) => lambda.clone().into_dist_target(name, package),
         }
     }
 }

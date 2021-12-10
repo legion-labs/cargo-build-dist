@@ -36,6 +36,10 @@ impl<'g> Package<'g> {
         })
     }
 
+    pub fn context(&self) -> &'g Context {
+        self.context
+    }
+
     pub fn id(&self) -> &guppy::PackageId {
         self.package_metadata.id()
     }
@@ -80,11 +84,27 @@ impl<'g> Package<'g> {
     }
 
     pub fn build_dist_targets(&self) -> Result<()> {
-        unimplemented!()
+        for dist_target in self.monorepo_metadata.dist_targets(self) {
+            action_step!("Building", "distribution {}", dist_target);
+            let before = std::time::Instant::now();
+            dist_target.build()?;
+            let duration = before.elapsed();
+            action_step!("Finished", "distribution in {:.2}s", duration.as_secs_f64());
+        }
+
+        Ok(())
     }
 
     pub fn publish_dist_targets(&self) -> Result<()> {
-        unimplemented!()
+        for dist_target in self.monorepo_metadata.dist_targets(self) {
+            action_step!("Publishing", "distribution {}", dist_target);
+            let before = std::time::Instant::now();
+            dist_target.publish()?;
+            let duration = before.elapsed();
+            action_step!("Finished", "publication in {:.2}s", duration.as_secs_f64());
+        }
+
+        Ok(())
     }
 
     pub fn tag(&self) -> Result<()> {

@@ -23,7 +23,11 @@ fn default_target_runtime() -> String {
 }
 
 impl AwsLambdaMetadata {
-    pub(crate) fn into_dist_target<'g>(self, name: String, package: Package<'g>) -> DistTarget<'g> {
+    pub(crate) fn into_dist_target<'g>(
+        self,
+        name: String,
+        package: &'g Package<'g>,
+    ) -> DistTarget<'g> {
         DistTarget::AwsLambda(AwsLambdaDistTarget {
             name,
             package,

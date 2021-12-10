@@ -10,7 +10,7 @@ publish = false
 anyhow = "1"
 mylib = { path = "../mylib" }
 
-[package.metadata.monorepo.simple]
+[package.metadata.monorepo.simple-docker]
 type = "docker"
 template = """
 FROM ubuntu:20.04
@@ -19,8 +19,8 @@ FROM ubuntu:20.04
 CMD [{{ binaries.0 }}]
 """
 allow_aws_ecr_creation = true
-extra_files = [{ source = "src/test/*", destination = "/usr/src/app/" }]
+extra_files = [{ source = "src/subjects/*", destination = "/usr/src/app/" }]
 
 [package.metadata.monorepo.simple-lambda]
 type = "aws-lambda"
-extra_files = [{ source = "src/test/*", destination = "/usr/src/app/" }]
+extra_files = [{ source = "src/subjects/*", destination = "/usr/src/app/" }]

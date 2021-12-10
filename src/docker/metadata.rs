@@ -46,7 +46,11 @@ where
 }
 
 impl DockerMetadata {
-    pub(crate) fn into_dist_target<'g>(self, name: String, package: Package<'g>) -> DistTarget<'g> {
+    pub(crate) fn into_dist_target<'g>(
+        self,
+        name: String,
+        package: &'g Package<'g>,
+    ) -> DistTarget<'g> {
         DistTarget::Docker(DockerDistTarget {
             name,
             package,
