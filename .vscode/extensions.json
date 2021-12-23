@@ -9,7 +9,5 @@
         "ms-vscode.cpptools",
         // Toml linting
         "tamasfe.even-better-toml",
-        // Inspect Hex file
-        "ms-vscode.hexeditor",
     ]
 }
