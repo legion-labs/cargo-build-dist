@@ -1,0 +1,58 @@
+name: CI
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - "*"
+  pull_request:
+
+jobs:
+  lint:
+    name: Running code checks
+    runs-on: ubuntu-20.04
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          override: true
+
+      - run: rustup component add rustfmt clippy
+      - run: cargo fetch
+
+      - name: Run formatting check
+        run: cargo fmt --all -- --check
+
+      - name: Run build checks
+        run: cargo check --locked --all-targets --all-features
+
+      - name: Run clippy checks
+        run: cargo clippy --locked --all-targets --all-features -- -D warnings
+
+      - name: Run dependencies checks
+        run: cargo deny check
+
+  test:
+    name: Running tests
+    needs: lint
+    strategy:
+      matrix:
+        os: [ubuntu-20.04, windows-2022, macos-11]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          override: true
+
+      - run: cargo fetch
+
+      - run: cargo fetch
+
+      - name: Build tests
+        run: cargo test --no-run
+
+      - name: Run tests
+        run: cargo test
