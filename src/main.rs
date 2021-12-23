@@ -177,8 +177,8 @@ impl PackageSelection for clap::App<'_, '_> {
 fn get_matches() -> clap::ArgMatches<'static> {
     let mut args: Vec<String> = std::env::args().collect();
 
-    if args.len() == 2 && args[1] == "monorepo" {
-        args.remove(0);
+    if args.len() > 1 && args[1] == "monorepo" {
+        args.remove(1);
     }
 
     App::new("cargo monorepo")
